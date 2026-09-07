@@ -18,13 +18,17 @@ export interface RenderOpts {
  *  2.78 for the classic ~1:1.39 portrait tile. */
 const FACE_W = 2;
 const FACE_H = 2.78;
-/** Lift per layer, in face widths (negative = up-left). */
-const LIFT_X = -0.16;
-const LIFT_Y = -0.28;
 /** Side/body thickness in face-height units (bottom bevel). */
 const SIDE = 0.3;
 /** Right bevel thickness in face-width units. */
 const SIDE_R = 0.12;
+/** Vertical pitch between same-layer grid rows: full face + visible side
+ *  strip. Rows must NOT overlap — each row shows its own face plus the 3D
+ *  edge of the row above (the classic mahjong wall look). */
+const ROW_PITCH = FACE_H + SIDE;
+/** Lift per layer, in face widths (negative = up-left). */
+const LIFT_X = -0.16;
+const LIFT_Y = -0.28;
 /** Sprite padding for the baked shadow (face units). */
 const SHADOW_PAD = 0.45;
 /** Padding around the board, css px. */
@@ -52,6 +56,19 @@ interface SpriteEntry {
 }
 
 const spriteCache = new Map<number, SpriteEntry>();
+
+/** Map a slot's grid x to face-width units (half-grid → tile columns + lift). */
+function slotX(s: { x: number; z: number }): number {
+  return s.x / 2 + (s.z - 1) * LIFT_X;
+}
+
+/** Map a slot's grid y to face-height units. One grid row (Δy = 2) advances
+ *  a full ROW_PITCH so same-layer rows NEVER overlap — each row shows its
+ *  face plus the 3D edge of the row above. Upper layers (odd y on the
+ *  half-unit grid) straddle two rows below, as designed. */
+function slotY(s: { y: number; z: number }): number {
+  return (s.y / 2) * ROW_PITCH + (s.z - 1) * LIFT_Y;
+}
 
 /** Bake the full 3D tile sprite for a face at the given unit px. */
 function tileSprite(face: number, u: number): HTMLCanvasElement {
@@ -167,8 +184,8 @@ export class Renderer {
     if (!this.board) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const s of this.board.layout.slots) {
-      const x = s.x / 2 + (s.z - 1) * LIFT_X;
-      const y = (s.y / 2) * (FACE_H / 2) + (s.z - 1) * LIFT_Y;
+      const x = slotX(s);
+      const y = slotY(s);
       minX = Math.min(minX, x - SHADOW_PAD);
       maxX = Math.max(maxX, x + FACE_W + SIDE_R + SHADOW_PAD);
       minY = Math.min(minY, y - SHADOW_PAD);
@@ -189,20 +206,21 @@ export class Renderer {
     if (!this.board) return;
     const placed: Placed[] = this.board.layout.slots.map((s, i) => ({
       idx: i,
-      x: s.x / 2 + (s.z - 1) * LIFT_X,
-      y: (s.y / 2) * (FACE_H / 2) + (s.z - 1) * LIFT_Y,
+      x: slotX(s),
+      y: slotY(s),
       z: s.z,
     }));
     placed.sort((a, b) => a.z - b.z || a.y - b.y || a.x - b.x);
     this.placed = placed;
   }
 
-  /** Slot index at canvas point (css px), topmost first; null if none. */
+  /** Slot index at canvas point (css px), topmost first; null if none.
+   *  The hit rect covers face + side strip (a tile's visible body). */
   hitTest(px: number, py: number): number | null {
     if (!this.board) return null;
     const u = this.unit;
-    const fw = FACE_W * u;
-    const fh = FACE_H * u;
+    const fw = (FACE_W + SIDE_R) * u;
+    const fh = (FACE_H + SIDE) * u;
     for (let i = this.placed.length - 1; i >= 0; i--) {
       const p = this.placed[i];
       if (this.board.faces[p.idx] === REMOVED) continue;
