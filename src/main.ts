@@ -1,0 +1,385 @@
+// App shell: fullscreen layout with three screens (home, level select, play)
+// + win overlay + stuck dialog. Plain DOM + one canvas per play screen.
+
+import { GameSession, type SessionEvent } from "./game/session";
+import { sfx, setMuted } from "./game/sound";
+import {
+  loadProgress, saveProgress, loadSettings, saveSettings,
+  loadSession, saveSession, clearSession,
+} from "./game/persist";
+import {
+  layoutById, levelLayout, levelDifficulty,
+  TOTAL_LEVELS, chapterOf, chapterTitle, CHAPTER_SIZE,
+} from "./game/catalog";
+import { Renderer } from "./render/renderer";
+import { REMOVED } from "./engine/board";
+import "./style.css";
+
+type Screen = "home" | "levels" | "play";
+
+const $ = <T extends HTMLElement = HTMLElement>(sel: string): T =>
+  document.querySelector(sel) as T;
+
+let progress = loadProgress();
+let settings = loadSettings();
+setMuted(settings.muted);
+
+let screen: Screen = "home";
+let session: GameSession | null = null;
+let renderer: Renderer | null = null;
+let currentLevel = 1;
+let resizeTimer = 0;
+
+// ---------------------------------------------------------------------------
+// Screen switching
+
+function showScreen(name: Screen) {
+  screen = name;
+  $("#screen-home").classList.toggle("hidden", name !== "home");
+  $("#screen-levels").classList.toggle("hidden", name !== "levels");
+  $("#screen-play").classList.toggle("hidden", name !== "play");
+  $("#topbar").classList.toggle("hidden", name === "home");
+}
+
+// ---------------------------------------------------------------------------
+// Home
+
+function renderHome() {
+  const next = Math.min(progress.unlocked, TOTAL_LEVELS);
+  $("#home-level-num").textContent = String(next);
+  $("#home-total-stars").textContent = String(totalStars());
+  $("#home-chapter").textContent = chapterTitle(chapterOf(next));
+}
+
+function totalStars(): number {
+  let s = 0;
+  for (const r of Object.values(progress.levels)) s += r.stars;
+  return s;
+}
+
+// ---------------------------------------------------------------------------
+// Level select
+
+function renderLevels() {
+  const grid = $("#levels-grid");
+  grid.innerHTML = "";
+  const ch = Math.max(0, Math.min(chapterCursor, Math.ceil(TOTAL_LEVELS / CHAPTER_SIZE) - 1));
+  chapterCursor = ch;
+  $("#levels-chapter-title").textContent = chapterTitle(ch);
+  const base = ch * CHAPTER_SIZE;
+  for (let i = 0; i < CHAPTER_SIZE; i++) {
+    const lv = base + i + 1;
+    const rec = progress.levels[String(lv)];
+    const unlocked = lv <= progress.unlocked;
+    const cell = document.createElement("button");
+    cell.className = "level-cell" + (unlocked ? "" : " locked");
+    cell.innerHTML = `
+      <span class="lv-num">${lv}</span>
+      <span class="lv-stars">${starsHtml(rec?.stars ?? 0)}</span>
+    `;
+    if (unlocked) {
+      cell.addEventListener("click", () => startLevel(lv));
+    }
+    grid.appendChild(cell);
+  }
+  $("#levels-prev").classList.toggle("dim", ch === 0);
+  $("#levels-next").classList.toggle("dim", ch >= Math.ceil(TOTAL_LEVELS / CHAPTER_SIZE) - 1);
+  const stars = totalStars();
+  $("#levels-stars-total").textContent = String(stars);
+  $("#topbar-stars").textContent = "★ " + stars;
+}
+
+function starsHtml(n: number): string {
+  let s = "";
+  for (let i = 0; i < 3; i++) s += i < n ? "★" : "☆";
+  return s;
+}
+
+let chapterCursor = 0;
+
+// ---------------------------------------------------------------------------
+// Play
+
+function startLevel(level: number) {
+  currentLevel = level;
+  const layout = levelLayout(level);
+  const diff = levelDifficulty(level);
+  session = new GameSession({
+    layout,
+    level,
+    difficulty: diff,
+    powerups: progress.powerups,
+    onEvent: onSessionEvent,
+  });
+  openPlay();
+}
+
+function openPlay() {
+  showScreen("play");
+  const canvas = $<HTMLCanvasElement>("#board");
+  renderer = new Renderer(canvas);
+  renderer.setBoard(session!.board);
+  renderer.setOpts({ selected: null, hintPair: null });
+  bindBoardEvents(canvas);
+  updateHud();
+  persistSession();
+}
+
+function bindBoardEvents(canvas: HTMLCanvasElement) {
+  if (canvas.dataset.bound === "1") return;
+  canvas.dataset.bound = "1";
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!session || !renderer) return;
+    const rect = canvas.getBoundingClientRect();
+    const idx = renderer.hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    if (idx === null) return;
+    session.tap(idx);
+  });
+}
+
+function onSessionEvent(e: SessionEvent) {
+  if (!session || !renderer) return;
+  switch (e.type) {
+    case "select":
+      renderer.setOpts({ selected: e.idx, hintPair: session.hintPair });
+      if (e.idx !== null) sfx.tap();
+      break;
+    case "moved":
+      renderer.pop(e.a, e.face);
+      renderer.pop(e.b, e.face);
+      sfx.match();
+      updateHud();
+      persistSession();
+      break;
+    case "shuffle":
+      renderer.setBoard(session.board);
+      sfx.shuffle();
+      updateHud();
+      persistSession();
+      break;
+    case "undo":
+      renderer.setBoard(session.board);
+      sfx.undo();
+      updateHud();
+      persistSession();
+      break;
+    case "cleared":
+      sfx.win();
+      onLevelCleared();
+      break;
+    case "stuck":
+      showStuckDialog();
+      break;
+    case "powerups":
+      progress.powerups = { ...e.powerups };
+      saveProgress(progress);
+      updateHud();
+      persistSession();
+      break;
+    case "invalid":
+      sfx.invalid();
+      break;
+  }
+}
+
+function updateHud() {
+  if (!session) return;
+  $("#hud-level").textContent = String(session.level);
+  $("#hud-score").textContent = String(session.score);
+  $("#hud-tiles").textContent = String(session.board.remaining);
+  $("#hud-matches").textContent = String(session.movesAvailable);
+  $("#pu-hints").textContent = String(session.powerups.hints);
+  $("#pu-shuffles").textContent = String(session.powerups.shuffles);
+  $("#pu-undos").textContent = String(session.powerups.undos);
+}
+
+function persistSession() {
+  if (!session) return;
+  if (session.board.remaining === session.layout.slots.length) {
+    // untouched board: nothing to resume
+    return;
+  }
+  const { level, layoutId, faces, historyLen, score, combo, hintsUsed, shufflesUsed, undosUsed, powerups } = session.serialize();
+  const facesNoHistory = faces.slice(0, faces.length);
+  saveSession({
+    level, layoutId, faces: facesNoHistory, historyLen, score, combo,
+    hintsUsed, shufflesUsed, undosUsed, powerups,
+  });
+}
+
+function resumeSession(): boolean {
+  const s = loadSession();
+  if (!s) return false;
+  try {
+    const layout = layoutById(s.layoutId);
+    const sess = new GameSession({
+      layout,
+      level: s.level,
+      difficulty: levelDifficulty(s.level),
+      powerups: s.powerups,
+      onEvent: onSessionEvent,
+    });
+    // restore board state
+    sess.board.faces = s.faces.slice();
+    sess.board.remaining = s.faces.filter((f) => f !== REMOVED).length;
+    sess.board.history.length = s.historyLen;
+    sess.score = s.score;
+    sess.combo = s.combo;
+    sess.hintsUsed = s.hintsUsed;
+    sess.shufflesUsed = s.shufflesUsed;
+    sess.undosUsed = s.undosUsed;
+    session = sess;
+    currentLevel = s.level;
+    openPlay();
+    return true;
+  } catch {
+    clearSession();
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Win / stuck
+
+function onLevelCleared() {
+  const stars = session!.stars();
+  const score = session!.score;
+  const key = String(currentLevel);
+  const prev = progress.levels[key];
+  const rec = { stars: Math.max(prev?.stars ?? 0, stars), score: Math.max(prev?.score ?? 0, score) };
+  progress.levels[key] = rec;
+  progress.unlocked = Math.max(progress.unlocked, Math.min(currentLevel + 1, TOTAL_LEVELS));
+  progress.totalScore += score;
+  saveProgress(progress);
+  clearSession();
+  // power-up reward: +1 hint every win, +1 shuffle every 3rd win
+  progress.powerups.hints += 1;
+  if (currentLevel % 3 === 0) progress.powerups.shuffles += 1;
+  progress.powerups.undos = Math.min(progress.powerups.undos + 1, 9);
+  saveProgress(progress);
+  showWinOverlay(stars, score);
+}
+
+function showWinOverlay(stars: number, score: number) {
+  const ov = $("#win-overlay");
+  $("#win-stars").innerHTML = starsHtml(stars);
+  $("#win-score").textContent = String(score);
+  $("#win-level").textContent = String(currentLevel);
+  ov.classList.remove("hidden");
+  if (stars > 0) sfx.star();
+}
+
+function showStuckDialog() {
+  $("#stuck-overlay").classList.remove("hidden");
+}
+
+// ---------------------------------------------------------------------------
+// Boot + events
+
+function bindUi() {
+  $("#btn-play").addEventListener("click", () => {
+    // resume in-flight level if any, else next unlocked
+    if (!resumeSession()) startLevel(Math.min(progress.unlocked, TOTAL_LEVELS));
+  });
+  $("#btn-levels").addEventListener("click", () => {
+    chapterCursor = chapterOf(Math.min(progress.unlocked, TOTAL_LEVELS));
+    renderLevels();
+    showScreen("levels");
+  });
+  $("#btn-mute").addEventListener("click", () => {
+    settings.muted = !settings.muted;
+    setMuted(settings.muted);
+    saveSettings(settings);
+    $("#btn-mute").textContent = settings.muted ? "🔇" : "🔊";
+  });
+  $("#btn-mute").textContent = settings.muted ? "🔇" : "🔊";
+
+  $("#levels-prev").addEventListener("click", () => {
+    if (chapterCursor > 0) { chapterCursor--; renderLevels(); }
+  });
+  $("#levels-next").addEventListener("click", () => {
+    if (chapterCursor < Math.ceil(TOTAL_LEVELS / CHAPTER_SIZE) - 1) { chapterCursor++; renderLevels(); }
+  });
+
+  $("#btn-back").addEventListener("click", () => {
+    showScreen("home");
+    renderHome();
+    session = null;
+    renderer = null;
+  });
+  $("#btn-hint").addEventListener("click", () => {
+    if (!session) return;
+    const pair = session.useHint();
+    if (pair && renderer) renderer.setOpts({ hintPair: pair, selected: null });
+    updateHud();
+  });
+  $("#btn-shuffle").addEventListener("click", () => {
+    if (!session) return;
+    session.useShuffle();
+  });
+  $("#btn-undo").addEventListener("click", () => {
+    if (!session) return;
+    session.undo();
+  });
+  $("#btn-restart").addEventListener("click", () => startLevel(currentLevel));
+
+  $("#win-next").addEventListener("click", () => {
+    $("#win-overlay").classList.add("hidden");
+    startLevel(Math.min(currentLevel + 1, TOTAL_LEVELS));
+  });
+  $("#win-replay").addEventListener("click", () => {
+    $("#win-overlay").classList.add("hidden");
+    startLevel(currentLevel);
+  });
+  $("#win-map").addEventListener("click", () => {
+    $("#win-overlay").classList.add("hidden");
+    chapterCursor = chapterOf(currentLevel);
+    renderLevels();
+    showScreen("levels");
+  });
+
+  $("#stuck-shuffle").addEventListener("click", () => {
+    $("#stuck-overlay").classList.add("hidden");
+    if (session) session.useShuffle();
+  });
+  $("#stuck-undo").addEventListener("click", () => {
+    $("#stuck-overlay").classList.add("hidden");
+    if (session) session.undo();
+  });
+  $("#stuck-restart").addEventListener("click", () => {
+    $("#stuck-overlay").classList.add("hidden");
+    startLevel(currentLevel);
+  });
+
+  window.addEventListener("resize", () => {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      renderer?.fit();
+    }, 100);
+  });
+}
+
+function tick(now: number) {
+  if (screen === "play" && renderer && session) {
+    renderer.draw(now);
+  }
+  requestAnimationFrame(tick);
+}
+
+function boot() {
+  bindUi();
+  renderHome();
+  showScreen("home");
+  // expose live session for e2e tests (no secrets — game state only)
+  Object.defineProperty(window, "__session", {
+    get: () => session,
+    configurable: true,
+  });
+  Object.defineProperty(window, "__progress", {
+    get: () => progress,
+    configurable: true,
+  });
+  requestAnimationFrame(tick);
+}
+
+boot();

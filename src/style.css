@@ -1,0 +1,288 @@
+/*
+  Mahjong Terrace — a relaxing Vita-style mahjong solitaire.
+  Fullscreen web app; 3000 deterministic levels; hint/shuffle/undo props.
+*/
+
+:root {
+  --felt: #1d6f4f;
+  --felt-deep: #14523a;
+  --gold: #f5c542;
+  --ink: #22301f;
+  --panel: #f7f1e1;
+  --panel-edge: #d8c9a3;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(120% 100% at 50% 0%, var(--felt) 0%, var(--felt-deep) 70%);
+  color: var(--ink);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- top bar ---------- */
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,0));
+  z-index: 5;
+}
+#topbar.hidden { display: none; }
+.back-btn {
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.25);
+  color: #fff;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.topbar-title {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: .5px;
+}
+.topbar-spacer { flex: 1; }
+.topbar-stat {
+  font-size: 13px;
+  opacity: .9;
+  background: rgba(0,0,0,.22);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* ---------- home ---------- */
+#screen-home {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #fff;
+  text-align: center;
+  padding: 24px;
+}
+.home-logo {
+  font-size: clamp(34px, 7vw, 64px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-shadow: 0 3px 12px rgba(0,0,0,.4);
+}
+.home-logo .mj { color: var(--gold); }
+.home-sub { font-size: 15px; opacity: .85; margin-top: -10px; }
+.home-card {
+  background: rgba(0,0,0,.28);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 18px;
+  padding: 18px 28px;
+  display: flex;
+  gap: 26px;
+  align-items: center;
+}
+.home-stat { display: flex; flex-direction: column; gap: 2px; }
+.home-stat .v { font-size: 26px; font-weight: 800; color: var(--gold); }
+.home-stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: .75; }
+.big-btn {
+  background: linear-gradient(180deg, #ffd968, #f0a92c);
+  color: #4a2f04;
+  font-size: 20px;
+  font-weight: 800;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 46px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.big-btn:active { transform: translateY(1px); }
+.secondary-btn {
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.3);
+  color: #fff;
+  font-size: 15px;
+  border-radius: 12px;
+  padding: 10px 26px;
+  cursor: pointer;
+}
+
+/* ---------- level select ---------- */
+#screen-levels {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px 16px;
+  color: #fff;
+  min-height: 0;
+}
+.levels-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.levels-title { font-size: 20px; font-weight: 800; }
+.chapter-nav {
+  background: rgba(255,255,255,.14);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 9px;
+  padding: 5px 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.chapter-nav.dim { opacity: .35; pointer-events: none; }
+#levels-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+  align-content: start;
+  padding: 4px;
+}
+.level-cell {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+}
+.level-cell .lv-stars { font-size: 12px; color: var(--gold); letter-spacing: 1px; }
+.level-cell.locked {
+  background: rgba(0,0,0,.25);
+  opacity: .45;
+  cursor: default;
+}
+
+/* ---------- play ---------- */
+#screen-play {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: #fff;
+}
+#hud .stat {
+  background: rgba(0,0,0,.24);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+#hud .stat b { color: var(--gold); }
+#board-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  padding: 4px;
+}
+#board {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  touch-action: none;
+}
+#powerbar {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.pu-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,.13);
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 14px;
+  color: #fff;
+  padding: 8px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 74px;
+}
+.pu-btn .ico { font-size: 22px; }
+.pu-btn .cnt {
+  background: var(--gold);
+  color: #4a2f04;
+  border-radius: 999px;
+  font-weight: 800;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.pu-btn:disabled { opacity: .4; }
+
+/* ---------- overlays ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 26, 18, .66);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.dialog {
+  background: var(--panel);
+  border: 2px solid var(--panel-edge);
+  border-radius: 20px;
+  padding: 26px 30px;
+  text-align: center;
+  max-width: 340px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.5);
+}
+.dialog h2 { font-size: 24px; margin-bottom: 8px; }
+.dialog .stars { font-size: 40px; color: #d99a06; letter-spacing: 4px; }
+.dialog .score { font-size: 16px; margin: 8px 0 16px; }
+.dialog .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.dlg-btn {
+  background: linear-gradient(180deg, #ffd968, #f0a92c);
+  border: none;
+  color: #4a2f04;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.dlg-btn.secondary {
+  background: #efe6cf;
+  color: var(--ink);
+  border: 1px solid var(--panel-edge);
+}

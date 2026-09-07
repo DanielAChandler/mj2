@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#14523a" />
+  <title>Mahjong Terrace</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='8' y='4' width='84' height='92' rx='12' fill='%23f7f1e1' stroke='%23d8c9a3' stroke-width='4'/%3E%3Ccircle cx='50' cy='50' r='22' fill='%2329416f'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <!-- top bar (levels + play screens) -->
+    <div id="topbar" class="hidden">
+      <button class="back-btn" id="btn-back">‹ Back</button>
+      <div class="topbar-title">Mahjong Terrace</div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-stat" id="topbar-stars">★ 0</div>
+      <button class="back-btn" id="btn-mute">🔊</button>
+    </div>
+
+    <!-- HOME -->
+    <div id="screen-home">
+      <div class="home-logo">Mahjong <span class="mj">Terrace</span></div>
+      <div class="home-sub" id="home-chapter">Bamboo Garden</div>
+      <div class="home-card">
+        <div class="home-stat">
+          <span class="v" id="home-level-num">1</span>
+          <span class="k">Next level</span>
+        </div>
+        <div class="home-stat">
+          <span class="v" id="home-total-stars">0</span>
+          <span class="k">Stars</span>
+        </div>
+        <div class="home-stat">
+          <span class="v">3000</span>
+          <span class="k">Levels</span>
+        </div>
+      </div>
+      <button class="big-btn" id="btn-play">Play</button>
+      <button class="secondary-btn" id="btn-levels">Level Map</button>
+    </div>
+
+    <!-- LEVELS -->
+    <div id="screen-levels" class="hidden">
+      <div class="levels-header">
+        <button class="chapter-nav" id="levels-prev">‹</button>
+        <div class="levels-title" id="levels-chapter-title">Bamboo Garden</div>
+        <button class="chapter-nav" id="levels-next">›</button>
+        <div class="topbar-spacer"></div>
+        <div class="topbar-stat">★ <span id="levels-stars-total">0</span></div>
+      </div>
+      <div id="levels-grid"></div>
+    </div>
+
+    <!-- PLAY -->
+    <div id="screen-play" class="hidden">
+      <div id="hud">
+        <div class="stat">Lv <b id="hud-level">1</b></div>
+        <div class="stat">Tiles <b id="hud-tiles">0</b></div>
+        <div class="stat">Moves <b id="hud-matches">0</b></div>
+        <div class="stat">Score <b id="hud-score">0</b></div>
+      </div>
+      <div id="board-wrap"><canvas id="board"></canvas></div>
+      <div id="powerbar">
+        <button class="pu-btn" id="btn-hint">
+          <span class="ico">💡</span><span>Hint</span><span class="cnt" id="pu-hints">3</span>
+        </button>
+        <button class="pu-btn" id="btn-shuffle">
+          <span class="ico">🔀</span><span>Shuffle</span><span class="cnt" id="pu-shuffles">2</span>
+        </button>
+        <button class="pu-btn" id="btn-undo">
+          <span class="ico">↩︎</span><span>Undo</span><span class="cnt" id="pu-undos">5</span>
+        </button>
+        <button class="pu-btn" id="btn-restart">
+          <span class="ico">🔄</span><span>Restart</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- WIN OVERLAY -->
+    <div id="win-overlay" class="overlay hidden">
+      <div class="dialog">
+        <h2>Level <span id="win-level">1</span> clear!</h2>
+        <div class="stars" id="win-stars">★★★</div>
+        <div class="score">Score <b id="win-score">0</b></div>
+        <div class="row">
+          <button class="dlg-btn" id="win-next">Next ›</button>
+          <button class="dlg-btn secondary" id="win-replay">Replay</button>
+          <button class="dlg-btn secondary" id="win-map">Map</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STUCK OVERLAY -->
+    <div id="stuck-overlay" class="overlay hidden">
+      <div class="dialog">
+        <h2>No moves left</h2>
+        <div class="score">Shuffle the remaining tiles or undo a move.</div>
+        <div class="row">
+          <button class="dlg-btn" id="stuck-shuffle">🔀 Shuffle</button>
+          <button class="dlg-btn secondary" id="stuck-undo">↩ Undo</button>
+          <button class="dlg-btn secondary" id="stuck-restart">Restart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
