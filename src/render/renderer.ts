@@ -7,6 +7,7 @@
 // hint pair pulses green.
 
 import { Board, REMOVED } from "../engine/board";
+import { TILE_H, TILE_W } from "../engine/layout";
 import { faceCanvas } from "./tileart";
 
 export interface RenderOpts {
@@ -19,9 +20,13 @@ export interface RenderOpts {
 const FACE_W = 2;
 const FACE_H = 2.78;
 /** Side/body thickness in face-height units (bottom bevel). */
-const SIDE = 0.3;
+const SIDE = 0.18;
 /** Right bevel thickness in face-width units. */
 const SIDE_R = 0.12;
+/** Horizontal pitch between same-layer grid columns: full face + right
+ *  bevel, mirroring ROW_PITCH. Without the bevel allowance each tile's 3D
+ *  body overlaps the next column's face. */
+const COL_PITCH = FACE_W + SIDE_R;
 /** Vertical pitch between same-layer grid rows: full face + visible side
  *  strip. Rows must NOT overlap — each row shows its own face plus the 3D
  *  edge of the row above (the classic mahjong wall look). */
@@ -33,8 +38,8 @@ const LIFT_Y = -0.28;
 const SHADOW_PAD = 0.45;
 /** Padding around the board, css px. */
 const PAD = 12;
-/** Visual inset per tile (Vita-style gaps between tiles; geometry unchanged). */
-const DRAW_SCALE = 0.94;
+/** Visual inset per tile (hairline seam; geometry unchanged). */
+const DRAW_SCALE = 0.99;
 
 interface Placed {
   idx: number;
@@ -57,17 +62,19 @@ interface SpriteEntry {
 
 const spriteCache = new Map<number, SpriteEntry>();
 
-/** Map a slot's grid x to face-width units (half-grid → tile columns + lift). */
+/** Map a slot's grid x to face-width units. One grid column (Δx = TILE_W)
+ *  advances a full COL_PITCH so each tile's face AND right bevel have their
+ *  own space — columns never overlap. Odd half-unit x (straddle offsets)
+ *  centers an upper tile on the seam between two lower columns. */
 function slotX(s: { x: number; z: number }): number {
-  return s.x / 2 + (s.z - 1) * LIFT_X;
+  return (s.x / TILE_W) * COL_PITCH + (s.z - 1) * LIFT_X;
 }
 
-/** Map a slot's grid y to face-height units. One grid row (Δy = 2) advances
- *  a full ROW_PITCH so same-layer rows NEVER overlap — each row shows its
- *  face plus the 3D edge of the row above. Upper layers (odd y on the
- *  half-unit grid) straddle two rows below, as designed. */
+/** Map a slot's grid y to face-height units. One grid row (Δy = TILE_H)
+ *  advances a full ROW_PITCH so same-layer rows NEVER overlap — each row
+ *  shows its face plus the 3D edge of the row above. */
 function slotY(s: { y: number; z: number }): number {
-  return (s.y / 2) * ROW_PITCH + (s.z - 1) * LIFT_Y;
+  return (s.y / TILE_H) * ROW_PITCH + (s.z - 1) * LIFT_Y;
 }
 
 /** Bake the full 3D tile sprite for a face at the given unit px. */
@@ -99,8 +106,8 @@ function tileSprite(face: number, u: number): HTMLCanvasElement {
   // body with baked drop shadow
   ctx.save();
   ctx.shadowColor = "rgba(12, 30, 20, 0.42)";
-  ctx.shadowBlur = Math.max(3, u * 0.55);
-  ctx.shadowOffsetY = Math.max(2, u * 0.28);
+  ctx.shadowBlur = Math.max(2, u * 0.3);
+  ctx.shadowOffsetY = Math.max(1, u * 0.14);
   const bodyGrad = ctx.createLinearGradient(0, by, 0, by + bh);
   bodyGrad.addColorStop(0, "#efe3c0");
   bodyGrad.addColorStop(1, "#c9ab6e");
