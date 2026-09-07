@@ -370,6 +370,8 @@ function boot() {
   bindUi();
   renderHome();
   showScreen("home");
+  // load the encrypted face sheet in the background; renderer picks it up
+  void import("./render/vitaassets").then((m) => m.loadVitaSheet());
   // expose live session for e2e tests (no secrets — game state only)
   Object.defineProperty(window, "__session", {
     get: () => session,

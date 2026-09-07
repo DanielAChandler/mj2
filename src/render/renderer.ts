@@ -1,37 +1,34 @@
-// Canvas board renderer — tiles rebuilt from real Vita Mahjong (desktop web)
-// pixel ground truth, extracted from a live board screenshot:
+// Canvas board renderer.
 //
-//   face:     near-white vertical gradient #fffaf6 -> #e9ebe6 (cool, not warm)
-//   right wall: ~5% of width, grey-teal #92abb0 -> #8ac9aa
-//   bottom wall: ~4% of height, grey-green #dee1da -> #8b9d8f
-//   outline:  hairline (~1px) very dark green #1b2e24 around the silhouette
-//   shadow:   subtle dark-green cast into the gaps (not a warm glow)
-//   art:      bold navy #2b4371 glyphs, green #106040 bamboo, red #b02a2a
-//   geometry: face ratio 1.35 (w:h), tight seams ~3%
+// Primary path: the bundled (encrypted) Vita cardface sheet — each 271x333
+// frame is a COMPLETE tile (rounded body, green outline, teal->green walls,
+// ivory face, painted art), drawn via texture-rect blit. Fallback: the
+// hand-drawn canvas sprites baked below, used if the sheet fails to load.
 //
-// Everything is baked into one offscreen sprite per face and blitted in
-// paint order (z -> y -> x).
+// Texture anatomy (atlas pixels): face spans x 6..246, y 6..313 (240x307);
+// right wall 246..268; bottom wall 313..330; dark-green outline ~3px.
 
 import { Board, REMOVED } from "../engine/board";
 import { TILE_H, TILE_W } from "../engine/layout";
 import { faceCanvas } from "./tileart";
+import { SHEET_COLS, vitaSheet } from "./vitaassets";
 
 export interface RenderOpts {
   selected: number | null; // slot index
   hintPair: [number, number] | null;
 }
 
-/** Tile face size in grid half-units (ratio 1.35 per Vita desktop pixels). */
+/** Tile face size in grid half-units (atlas face ratio 307/240 = 1.28). */
 const FACE_W = 2;
-const FACE_H = 2.7;
-/** Bottom wall (grey-green) in face-height units (~4px of 108). */
-const SIDE = 0.04;
-/** Right wall (grey-teal) in face-width units (~4px of 80). */
-const WALL_R = 0.05;
-/** Horizontal pitch: face + right wall + seam (~3%). */
-const COL_PITCH = FACE_W + WALL_R + 0.06;
+const FACE_H = 2.56;
+/** Bottom wall in face-height units (texture bottom wall ~20/307). */
+const SIDE = 0.065;
+/** Right wall (grey-teal) in face-width units (~22/240). */
+const WALL_R = 0.09;
+/** Horizontal pitch: face + right wall + seam. */
+const COL_PITCH = FACE_W + WALL_R + 0.02;
 /** Vertical pitch: face + bottom wall. */
-const ROW_PITCH = FACE_H + SIDE;
+const ROW_PITCH = FACE_H + SIDE + 0.035;
 /** Lift per layer (up-left), face-width units — stacks read as near-vertical
  *  towers; keep lift minimal. */
 const LIFT_X = -0.04;
@@ -76,7 +73,7 @@ function slotY(s: { y: number; z: number }): number {
   return (s.y / TILE_H) * ROW_PITCH + (s.z - 1) * LIFT_Y;
 }
 
-/** Bake the reference-style tile sprite for a face at unit px. */
+/** Bake the fallback (hand-drawn) tile sprite for a face at unit px. */
 function tileSprite(face: number, u: number): HTMLCanvasElement {
   const hit = spriteCache.get(face);
   if (hit && Math.abs(hit.unit - u) < 0.5) return hit.canvas;
@@ -261,17 +258,31 @@ export class Renderer {
     const board = this.board;
     if (!board) return;
     const u = this.unit;
+    const sheet = vitaSheet();
+    // full texture (271x333) mapped onto face + walls
+    const TEX_W = 271, TEX_H = 333;
+    const fw = FACE_W * u;
+    const fh = FACE_H * u;
+    const drawW = fw * (TEX_W / 240); // texture incl. walls per atlas anatomy
+    const drawH = fh * (333 / 307);
 
     for (const p of this.placed) {
       if (board.faces[p.idx] === REMOVED) continue;
       const face = board.faces[p.idx];
-      const sprite = tileSprite(face, u);
       const r = this.tileRect(p);
       const side = Math.max(2, Math.round(SIDE * r.fh));
-      // sprite css size (drawn at dpr internally); hairline outline at ol=1
-      const sp = sprite.width / Math.min(dpr, 2);
-      const sh = sprite.height / Math.min(dpr, 2);
-      ctx.drawImage(sprite, r.x - 1, r.y - 1, sp, sh);
+
+      if (sheet) {
+        const col = face % SHEET_COLS;
+        const row = Math.floor(face / SHEET_COLS);
+        const sx = col * TEX_W, sy = row * TEX_H;
+        ctx.drawImage(sheet, sx, sy, TEX_W, TEX_H, r.x, r.y, drawW, drawH);
+      } else {
+        const sprite = tileSprite(face, u);
+        const sp = sprite.width / Math.min(dpr, 2);
+        const sh = sprite.height / Math.min(dpr, 2);
+        ctx.drawImage(sprite, r.x - 1, r.y - 1, sp, sh);
+      }
 
       const covered = board.coveredAbove(p.idx);
       const selected = this.opts.selected === p.idx;
@@ -307,10 +318,16 @@ export class Renderer {
       const cx = r.x + r.fw / 2;
       const cy = r.y + r.fh / 2;
       ctx.globalAlpha = 1 - t;
-      const sprite = tileSprite(p.face, u);
-      const sp = sprite.width / Math.min(dpr, 2);
-      const sh = sprite.height / Math.min(dpr, 2);
-      ctx.drawImage(sprite, cx - (sp * grow) / 2, cy - (sh * grow) / 2, sp * grow, sh * grow);
+      if (sheet) {
+        const col = p.face % SHEET_COLS;
+        const row = Math.floor(p.face / SHEET_COLS);
+        ctx.drawImage(sheet, col * TEX_W, row * TEX_H, TEX_W, TEX_H, cx - (drawW * grow) / 2, cy - (drawH * grow) / 2, drawW * grow, drawH * grow);
+      } else {
+        const sprite = tileSprite(p.face, u);
+        const sp = sprite.width / Math.min(dpr, 2);
+        const sh = sprite.height / Math.min(dpr, 2);
+        ctx.drawImage(sprite, cx - (sp * grow) / 2, cy - (sh * grow) / 2, sp * grow, sh * grow);
+      }
       ctx.globalAlpha = 1;
     }
   }
