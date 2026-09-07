@@ -39,13 +39,11 @@ const LIFT_Y = -0.22;
 /** Padding around the board, css px. */
 const PAD = 12;
 
-const C_FACE_TOP = "#fffaf6";
-const C_FACE_BOT = "#e9ebe6";
-const C_WALL_R_TOP = "#92abb0";
-const C_WALL_R_BOT = "#8ac9aa";
-const C_WALL_B_TOP = "#dee1da";
-const C_WALL_B_BOT = "#8b9d8f";
-const C_OUTLINE = "#1b2e24";
+const C_FACE = "#fcfdf3";
+const C_FACE_SHADE = "#eceee7";
+const C_WALL_TEAL = "#9aaeb2";
+const C_WALL_GREEN = "#238a26";
+const C_OUTLINE = "#053e02";
 
 interface Placed {
   idx: number;
@@ -87,7 +85,8 @@ function tileSprite(face: number, u: number): HTMLCanvasElement {
   const fh = Math.max(12, Math.round(FACE_H * u));
   const side = Math.max(2, Math.round(SIDE * fh)); // bottom wall
   const wallR = Math.max(2, Math.round(WALL_R * fw)); // right wall
-  const ol = 1; // hairline outline
+  const ol = Math.max(1, Math.round(fw * 0.012)); // outline ~3px/271
+  const rad = Math.max(3, Math.round(fw * 0.05)); // corner radius ~12/271
   const w = fw + wallR + ol * 2;
   const h = fh + side + ol * 2;
 
@@ -98,41 +97,53 @@ function tileSprite(face: number, u: number): HTMLCanvasElement {
   const ctx = c.getContext("2d")!;
   ctx.scale(dpr, dpr);
 
-  // bottom wall: grey-green, darker toward the bottom edge
-  const bw = ctx.createLinearGradient(0, ol + fh, 0, ol + fh + side);
-  bw.addColorStop(0, C_WALL_B_TOP);
-  bw.addColorStop(1, C_WALL_B_BOT);
-  ctx.fillStyle = bw;
-  ctx.fillRect(ol, ol + fh, fw + wallR, side);
+  // silhouette path: rounded rect spanning face + walls
+  const sil = new Path2D();
+  sil.roundRect(ol, ol, fw + wallR, fh + side, rad);
 
-  // right wall: grey-teal, darker toward the right edge
+  // ground shadow: soft green-black under the bottom-right (per reference)
+  ctx.save();
+  ctx.shadowColor = "rgba(4, 60, 4, 0.45)";
+  ctx.shadowBlur = Math.max(3, u * 0.8);
+  ctx.shadowOffsetX = Math.max(1, u * 0.18);
+  ctx.shadowOffsetY = Math.max(2, u * 0.32);
+  ctx.fillStyle = C_FACE;
+  ctx.fill(sil);
+  ctx.restore();
+
+  // right wall: grey-teal fading to green at the outer edge
   const rw = ctx.createLinearGradient(ol + fw, 0, ol + fw + wallR, 0);
-  rw.addColorStop(0, C_WALL_R_TOP);
-  rw.addColorStop(1, C_WALL_R_BOT);
+  rw.addColorStop(0, "#c3cfcd");
+  rw.addColorStop(0.4, C_WALL_TEAL);
+  rw.addColorStop(1, C_WALL_GREEN);
   ctx.fillStyle = rw;
-  ctx.fillRect(ol + fw, ol, wallR, fh);
+  ctx.fillRect(ol + fw, ol + rad, wallR, fh - rad * 2 + side);
 
-  // face: near-white, slight vertical shading
+  // bottom wall: teal fading to bright green at the lower edge
+  const bw = ctx.createLinearGradient(0, ol + fh, 0, ol + fh + side);
+  bw.addColorStop(0, "#c9d2cd");
+  bw.addColorStop(0.4, C_WALL_TEAL);
+  bw.addColorStop(1, "#2fa432");
+  ctx.fillStyle = bw;
+  ctx.fillRect(ol + rad, ol + fh, fw - rad * 2 + wallR, side);
+
+  // face: near-white with a soft lower shade
   const fg = ctx.createLinearGradient(0, ol, 0, ol + fh);
-  fg.addColorStop(0, C_FACE_TOP);
-  fg.addColorStop(1, C_FACE_BOT);
+  fg.addColorStop(0, C_FACE);
+  fg.addColorStop(0.75, C_FACE);
+  fg.addColorStop(1, C_FACE_SHADE);
   ctx.fillStyle = fg;
-  ctx.fillRect(ol, ol, fw, fh);
-
-  // top-left overlap shading (the diagonal shade the reference shows)
-  const sh = ctx.createLinearGradient(ol, ol, ol + fw * 0.55, ol + fh * 0.5);
-  sh.addColorStop(0, "rgba(20,30,26,0.10)");
-  sh.addColorStop(1, "rgba(20,30,26,0)");
-  ctx.fillStyle = sh;
-  ctx.fillRect(ol, ol, fw, fh * 0.5);
+  ctx.beginPath();
+  ctx.roundRect(ol, ol, fw, fh, rad);
+  ctx.fill();
 
   // art
-  ctx.drawImage(faceCanvas(face), ol + fw * 0.06, ol + fh * 0.24, fw * 0.88, fh * 0.73);
+  ctx.drawImage(faceCanvas(face), ol + fw * 0.05, ol + fh * 0.03, fw * 0.9, fh * 0.94);
 
-  // hairline outline around the whole silhouette
+  // hairline dark-green outline around the whole silhouette
   ctx.strokeStyle = C_OUTLINE;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(ol + 0.5, ol + 0.5, fw + wallR - 1, fh + side - 1);
+  ctx.lineWidth = ol;
+  ctx.stroke(sil);
 
   spriteCache.set(face, { canvas: c, unit: u });
   return c;
