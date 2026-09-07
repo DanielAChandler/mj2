@@ -1,16 +1,16 @@
-// Canvas board renderer — tiles rebuilt from real Vita Mahjong pixel ground
-// truth (extracted from the actual game's board screenshot):
+// Canvas board renderer — tiles rebuilt from real Vita Mahjong (desktop web)
+// pixel ground truth, extracted from a live board screenshot:
 //
-//   face:     flat ivory #f9f5ec with a barely-there (~2%) vertical tint
-//   outline:  ~2px charcoal #333339 around the face (AA'd rim outside)
-//   bottom:   ~6px near-black depth band #0a0a0a (the tile "thickness")
-//   shadow:   soft warm-brown cast BELOW the depth band onto the felt
-//   art:      bold navy #333957 glyphs, red #bd3333 accents
-//   gaps:     tile pitch = face + ~4% seam; rows stack face + depth band
+//   face:     near-white vertical gradient #fffaf6 -> #e9ebe6 (cool, not warm)
+//   right wall: ~5% of width, grey-teal #92abb0 -> #8ac9aa
+//   bottom wall: ~4% of height, grey-green #dee1da -> #8b9d8f
+//   outline:  hairline (~1px) very dark green #1b2e24 around the silhouette
+//   shadow:   subtle dark-green cast into the gaps (not a warm glow)
+//   art:      bold navy #2b4371 glyphs, green #106040 bamboo, red #b02a2a
+//   geometry: face ratio 1.35 (w:h), tight seams ~3%
 //
-// No bevels, no gloss, no rounded corners — Vita tiles are FLAT with a hard
-// dark contour and a dark base. Everything is baked into one offscreen
-// sprite per face and blitted in paint order.
+// Everything is baked into one offscreen sprite per face and blitted in
+// paint order (z -> y -> x).
 
 import { Board, REMOVED } from "../engine/board";
 import { TILE_H, TILE_W } from "../engine/layout";
@@ -21,30 +21,31 @@ export interface RenderOpts {
   hintPair: [number, number] | null;
 }
 
-/** Tile face size in grid half-units (portrait 1:1.49 per Vita pixels). */
+/** Tile face size in grid half-units (ratio 1.35 per Vita desktop pixels). */
 const FACE_W = 2;
-const FACE_H = 2.98;
-/** Near-black depth band under the face (face-height units, ~6/261). */
-const SIDE = 0.16;
-/** Outline width in face-width units (~2px of 175). */
-const OUTLINE = 0.045;
-/** Horizontal pitch: face + seam (~4%). */
-const COL_PITCH = FACE_W * 1.04;
-/** Vertical pitch: face + depth band. */
+const FACE_H = 2.7;
+/** Bottom wall (grey-green) in face-height units (~4px of 108). */
+const SIDE = 0.04;
+/** Right wall (grey-teal) in face-width units (~4px of 80). */
+const WALL_R = 0.05;
+/** Horizontal pitch: face + right wall + seam (~3%). */
+const COL_PITCH = FACE_W + WALL_R + 0.06;
+/** Vertical pitch: face + bottom wall. */
 const ROW_PITCH = FACE_H + SIDE;
-/** Lift per layer (up-left), face-width units — Vita stacks read as pure
- *  vertical towers; keep lift minimal. */
+/** Lift per layer (up-left), face-width units — stacks read as near-vertical
+ *  towers; keep lift minimal. */
 const LIFT_X = -0.04;
 const LIFT_Y = -0.22;
-/** Soft shadow below the tile (face-height units). */
-const SHADOW_H = 0.1;
 /** Padding around the board, css px. */
 const PAD = 12;
 
-const C_FACE_TOP = "#f9f5ec";
-const C_FACE_BOT = "#f7f2e7";
-const C_OUTLINE = "#333339";
-const C_DEPTH = "#0a0a0a";
+const C_FACE_TOP = "#fffaf6";
+const C_FACE_BOT = "#e9ebe6";
+const C_WALL_R_TOP = "#92abb0";
+const C_WALL_R_BOT = "#8ac9aa";
+const C_WALL_B_TOP = "#dee1da";
+const C_WALL_B_BOT = "#8b9d8f";
+const C_OUTLINE = "#1b2e24";
 
 interface Placed {
   idx: number;
@@ -77,18 +78,18 @@ function slotY(s: { y: number; z: number }): number {
   return (s.y / TILE_H) * ROW_PITCH + (s.z - 1) * LIFT_Y;
 }
 
-/** Bake the Vita-style tile sprite for a face at unit px. */
+/** Bake the reference-style tile sprite for a face at unit px. */
 function tileSprite(face: number, u: number): HTMLCanvasElement {
   const hit = spriteCache.get(face);
   if (hit && Math.abs(hit.unit - u) < 0.5) return hit.canvas;
 
   const fw = Math.max(8, Math.round(FACE_W * u));
   const fh = Math.max(12, Math.round(FACE_H * u));
-  const side = Math.max(2, Math.round(SIDE * fh));
-  const ol = Math.max(1, Math.round(OUTLINE * fw));
-  const shH = Math.max(2, Math.round(SHADOW_H * fh));
-  const w = fw + ol * 2;
-  const h = fh + ol * 2 + side + shH;
+  const side = Math.max(2, Math.round(SIDE * fh)); // bottom wall
+  const wallR = Math.max(2, Math.round(WALL_R * fw)); // right wall
+  const ol = 1; // hairline outline
+  const w = fw + wallR + ol * 2;
+  const h = fh + side + ol * 2;
 
   const c = document.createElement("canvas");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -97,35 +98,41 @@ function tileSprite(face: number, u: number): HTMLCanvasElement {
   const ctx = c.getContext("2d")!;
   ctx.scale(dpr, dpr);
 
-  // soft warm-brown shadow below the tile
-  const sg = ctx.createLinearGradient(0, ol + fh + side, 0, ol + fh + side + shH);
-  sg.addColorStop(0, "rgba(24, 20, 8, 0.30)");
-  sg.addColorStop(1, "rgba(24, 20, 8, 0)");
-  ctx.fillStyle = sg;
-  ctx.fillRect(ol * 0.4, ol + fh + side, fw + ol * 1.2, shH);
+  // bottom wall: grey-green, darker toward the bottom edge
+  const bw = ctx.createLinearGradient(0, ol + fh, 0, ol + fh + side);
+  bw.addColorStop(0, C_WALL_B_TOP);
+  bw.addColorStop(1, C_WALL_B_BOT);
+  ctx.fillStyle = bw;
+  ctx.fillRect(ol, ol + fh, fw + wallR, side);
 
-  // depth band (charcoal -> near-black)
-  const dg = ctx.createLinearGradient(0, ol + fh, 0, ol + fh + side);
-  dg.addColorStop(0, "#3a352c");
-  dg.addColorStop(0.35, "#1d1a14");
-  dg.addColorStop(1, C_DEPTH);
-  ctx.fillStyle = dg;
-  ctx.fillRect(ol, ol + fh, fw, side);
+  // right wall: grey-teal, darker toward the right edge
+  const rw = ctx.createLinearGradient(ol + fw, 0, ol + fw + wallR, 0);
+  rw.addColorStop(0, C_WALL_R_TOP);
+  rw.addColorStop(1, C_WALL_R_BOT);
+  ctx.fillStyle = rw;
+  ctx.fillRect(ol + fw, ol, wallR, fh);
 
-  // face: flat ivory, ~2% tint
+  // face: near-white, slight vertical shading
   const fg = ctx.createLinearGradient(0, ol, 0, ol + fh);
   fg.addColorStop(0, C_FACE_TOP);
   fg.addColorStop(1, C_FACE_BOT);
   ctx.fillStyle = fg;
   ctx.fillRect(ol, ol, fw, fh);
 
-  // art fills the face (Vita glyphs span ~80% of the face)
-  ctx.drawImage(faceCanvas(face), ol + fw * 0.02, ol + fh * 0.015, fw * 0.96, fh * 0.97);
+  // top-left overlap shading (the diagonal shade the reference shows)
+  const sh = ctx.createLinearGradient(ol, ol, ol + fw * 0.55, ol + fh * 0.5);
+  sh.addColorStop(0, "rgba(20,30,26,0.10)");
+  sh.addColorStop(1, "rgba(20,30,26,0)");
+  ctx.fillStyle = sh;
+  ctx.fillRect(ol, ol, fw, fh * 0.5);
 
-  // hard charcoal outline around the face (and down the sides of the band)
+  // art
+  ctx.drawImage(faceCanvas(face), ol + fw * 0.06, ol + fh * 0.24, fw * 0.88, fh * 0.73);
+
+  // hairline outline around the whole silhouette
   ctx.strokeStyle = C_OUTLINE;
-  ctx.lineWidth = ol * 2 >= 3 ? 2 : 1;
-  ctx.strokeRect(ol + 0.5, ol + 0.5, fw - 1, fh - 1);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(ol + 0.5, ol + 0.5, fw + wallR - 1, fh + side - 1);
 
   spriteCache.set(face, { canvas: c, unit: u });
   return c;
@@ -167,7 +174,7 @@ export class Renderer {
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x + FACE_W);
       minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y + FACE_H + SIDE + SHADOW_H);
+      maxY = Math.max(maxY, y + FACE_H + SIDE);
     }
     const wU = maxX - minX;
     const hU = maxY - minY;
@@ -249,18 +256,17 @@ export class Renderer {
       const face = board.faces[p.idx];
       const sprite = tileSprite(face, u);
       const r = this.tileRect(p);
-      const ol = Math.max(1, Math.round(OUTLINE * r.fw));
       const side = Math.max(2, Math.round(SIDE * r.fh));
-      // sprite css size (drawn at dpr internally)
+      // sprite css size (drawn at dpr internally); hairline outline at ol=1
       const sp = sprite.width / Math.min(dpr, 2);
       const sh = sprite.height / Math.min(dpr, 2);
-      ctx.drawImage(sprite, r.x - ol, r.y - ol, sp, sh);
+      ctx.drawImage(sprite, r.x - 1, r.y - 1, sp, sh);
 
       const covered = board.coveredAbove(p.idx);
       const selected = this.opts.selected === p.idx;
       const hinted = this.opts.hintPair !== null && (this.opts.hintPair[0] === p.idx || this.opts.hintPair[1] === p.idx);
 
-      // covered: Vita dims toward the felt tone
+      // covered tiles dim toward the felt tone
       if (covered && !selected && !hinted) {
         ctx.fillStyle = "rgba(20, 46, 32, 0.42)";
         ctx.fillRect(r.x, r.y, r.fw, r.fh + side);
@@ -286,17 +292,14 @@ export class Renderer {
     for (const p of this.pops) {
       const t = (now - p.t0) / POP_MS;
       const r = this.tileRect(p);
-      const ol = Math.max(1, Math.round(OUTLINE * r.fw));
       const grow = 1 + t * 0.35;
       const cx = r.x + r.fw / 2;
       const cy = r.y + r.fh / 2;
-      const w2 = (r.fw * grow) / 2 + ol;
-      const h2 = (r.fh * grow) / 2 + ol;
       ctx.globalAlpha = 1 - t;
       const sprite = tileSprite(p.face, u);
       const sp = sprite.width / Math.min(dpr, 2);
       const sh = sprite.height / Math.min(dpr, 2);
-      ctx.drawImage(sprite, cx - (w2 * sp) / (r.fw + ol * 2), cy - (h2 * sh) / (r.fh + ol * 2 + Math.max(2, Math.round(SHADOW_H * r.fh))), sp * grow, sh * grow);
+      ctx.drawImage(sprite, cx - (sp * grow) / 2, cy - (sh * grow) / 2, sp * grow, sh * grow);
       ctx.globalAlpha = 1;
     }
   }

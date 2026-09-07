@@ -1,16 +1,26 @@
-// Canvas face art for the 42 tile faces — clean, bold, flat Vita-style icons
-// (navy dots, dark-green bamboo, near-black characters, red 中, green 癸,
-// blue-framed blank). Each face is rendered once into an offscreen canvas
-// (100×130 logical px) and cached; the renderer blits scaled copies.
+// Canvas face art for the 42 tile faces — rebuilt from the reference app's
+// actual pixels (desktop web capture):
+//
+//   dots:     big solid navy circles, no rings; the center dot of odd tiles
+//             is a flower-sculpted circle
+//   bamboo:   green rounded sticks with node lines, red accent on the 1
+//   chars:    bold navy glyphs, small number on top, 萬 large below, with a
+//             hard bottom-right cast shadow (offset dupe), as in the reference
+//   winds:    single bold navy glyph with cast shadow
+//   dragons:  中 red, 發 green, white = navy rounded rectangle frame
+//   flowers/seasons: colored glyph + small caption below
+//
+// Art lives in the lower ~75% of the face (clear of the top-left overlap
+// shading). Each face renders once into an offscreen canvas (100x135) and
+// is cached; the renderer blits scaled copies.
 
 const FW = 100; // face art width
-const FH = 130; // face art height
+const FH = 135; // face art height
 
-const NAVY = "#333957";
-const GREEN = "#1d5c2f";
-const RED = "#bd3333";
-const INK = "#333339";
-const CJK = "'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif";
+const NAVY = "#2b4371";
+const GREEN = "#106040";
+const RED = "#b02a2a";
+const CJK = "'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif";
 
 const cache = new Map<number, HTMLCanvasElement>();
 
@@ -26,41 +36,54 @@ export function faceCanvas(face: number): HTMLCanvasElement {
   return c;
 }
 
-function dot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill = NAVY, ring = false) {
+function solidDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill = NAVY) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fillStyle = fill;
   ctx.fill();
-  if (ring) {
-    ctx.lineWidth = Math.max(1.5, r * 0.28);
-    ctx.strokeStyle = RED;
-    ctx.stroke();
-  }
+}
+
+/** Petal-sculpted circle for the odd-tile center dot (per the reference). */
+function flowerDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = NAVY;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.7, 0, Math.PI * 2);
+  ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
+  ctx.fillStyle = "#41598c";
+  ctx.fill("evenodd");
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.18, 0, Math.PI * 2);
+  ctx.fillStyle = "#5d78b0";
+  ctx.fill();
 }
 
 function bambooStick(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-  // rounded vertical stick with two node lines
   const r = w / 2;
   ctx.fillStyle = GREEN;
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
   ctx.fill();
-  ctx.strokeStyle = "#fcfaf3";
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.9;
-  for (const t of [y + h * 0.28, y + h * 0.62]) {
+  ctx.strokeStyle = "#0a4230";
+  ctx.lineWidth = 1.5;
+  for (const t of [y + h * 0.33, y + h * 0.66]) {
     ctx.beginPath();
     ctx.moveTo(x + 1.5, t);
     ctx.lineTo(x + w - 1.5, t);
     ctx.stroke();
   }
-  ctx.globalAlpha = 1;
 }
 
-function charText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string) {
+function charText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string, shadow = true) {
   ctx.font = `bold ${size}px ${CJK}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  if (shadow) {
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fillText(text, x + size * 0.05, y + size * 0.05);
+  }
   ctx.fillStyle = color;
   ctx.fillText(text, x, y);
 }
@@ -75,56 +98,52 @@ function drawFace(ctx: CanvasRenderingContext2D, face: number) {
   else drawSeason(ctx, face - 38);
 }
 
+/* [x, y, r, isFlower] in the 100x135 art canvas */
 const DOT_PATTERNS: Record<number, Array<[number, number, number, boolean]>> = {
-  1: [[50, 65, 40, true]],
-  2: [[50, 32, 27, false], [50, 98, 27, false]],
-  3: [[50, 24, 21, false], [50, 65, 22, true], [50, 106, 21, false]],
-  4: [[27, 41, 19, false], [73, 41, 19, false], [27, 89, 19, false], [73, 89, 19, false]],
-  5: [[24, 37, 16, false], [76, 37, 16, false], [24, 93, 16, false], [76, 93, 16, false], [50, 65, 17, true]],
-  6: [[27, 30, 15, false], [27, 65, 15, false], [27, 100, 15, false], [73, 30, 15, false], [73, 65, 15, false], [73, 100, 15, false]],
-  7: [[27, 28, 13, false], [27, 63, 13, false], [27, 98, 13, false], [73, 28, 13, false], [73, 63, 13, false], [73, 98, 13, false], [50, 42, 13, true]],
-  8: [[27, 26, 12, false], [27, 54, 12, false], [27, 82, 12, false], [27, 110, 12, false], [73, 26, 12, false], [73, 54, 12, false], [73, 82, 12, false], [73, 110, 12, false]],
-  9: [[22, 38, 12, false], [50, 38, 12, false], [78, 38, 12, false], [22, 65, 12, false], [50, 65, 12, true], [78, 65, 12, false], [22, 92, 12, false], [50, 92, 12, false], [78, 92, 12, false]],
+  1: [[50, 78, 36, true]],
+  2: [[50, 44, 25, false], [50, 100, 25, false]],
+  3: [[50, 36, 19, false], [50, 78, 21, true], [50, 118, 19, false]],
+  4: [[27, 54, 18, false], [73, 54, 18, false], [27, 102, 18, false], [73, 102, 18, false]],
+  5: [[24, 48, 15, false], [76, 48, 15, false], [24, 106, 15, false], [76, 106, 15, false], [50, 77, 16, true]],
+  6: [[27, 38, 14, false], [27, 77, 14, false], [27, 116, 14, false], [73, 38, 14, false], [73, 77, 14, false], [73, 116, 14, false]],
+  7: [[27, 36, 12, false], [27, 74, 12, false], [27, 112, 12, false], [73, 36, 12, false], [73, 74, 12, false], [73, 112, 12, false], [50, 52, 12, true]],
+  8: [[27, 34, 11, false], [27, 70, 11, false], [27, 106, 11, false], [73, 34, 11, false], [73, 70, 11, false], [73, 106, 11, false], [50, 34, 11, false], [50, 70, 11, false], [50, 106, 11, false]],
+  9: [[22, 44, 11, false], [50, 44, 11, false], [78, 44, 11, false], [22, 77, 11, false], [50, 77, 12, true], [78, 77, 11, false], [22, 110, 11, false], [50, 110, 11, false], [78, 110, 11, false]],
 };
 
 function drawDots(ctx: CanvasRenderingContext2D, n: number) {
-  for (const [x, y, r, ring] of DOT_PATTERNS[n]) dot(ctx, x, y, r, NAVY, ring);
+  for (const [x, y, r, flower] of DOT_PATTERNS[n]) {
+    if (flower) flowerDot(ctx, x, y, r);
+    else solidDot(ctx, x, y, r);
+  }
 }
 
 function drawBamboo(ctx: CanvasRenderingContext2D, n: number) {
   if (n === 1) {
-    // bird-on-bamboo stylized: one thick stick + red crown dot
-    bambooStick(ctx, 41, 30, 18, 72);
-    dot(ctx, 50, 16, 11, RED);
+    // bird-on-bamboo: thick stick + red crown
+    bambooStick(ctx, 41, 38, 18, 82);
+    solidDot(ctx, 50, 22, 10, RED);
     return;
   }
-  const cols = n === 2 || n === 4 || n === 6 || n === 8 ? 2 : n === 5 || n === 7 || n === 9 ? (n === 9 ? 3 : 2) : 2;
-  const rows = n / cols + (n % cols === 0 ? 0 : 1);
-  const sticks = n;
-  // layout positions per count (mirrors classic arrangements)
-  const W = 11;
-  const positions = bambooPositions(n, W);
-  void cols; void rows; void sticks;
-  for (const [x, y, h] of positions) bambooStick(ctx, x, y, W, h);
+  for (const [x, y, h] of bambooPositions(n)) bambooStick(ctx, x, y, 11, h);
 }
 
-function bambooPositions(n: number, w: number): Array<[number, number, number]> {
-  void w;
-  const short = 46;
-  const long = 100;
-  const mid = 72;
-  const L = 10;
-  const R = 86;
-  const C = 48;
+function bambooPositions(n: number): Array<[number, number, number]> {
+  const short = 48;
+  const long = 104;
+  const mid = 76;
+  const L = 12;
+  const R = 77;
+  const C = 44;
   switch (n) {
-    case 2: return [[L, 15, long], [R, 15, long]];
-    case 3: return [[L, 15, long], [C, 15, long], [R, 15, long]];
-    case 4: return [[L, 12, short], [R, 12, short], [L, 66, short], [R, 66, short]];
-    case 5: return [[L, 12, short], [R, 12, short], [L, 66, short], [R, 66, short], [C, 29, mid]];
-    case 6: return [[L, 8, short], [C, 8, short], [R, 8, short], [L, 66, short], [C, 66, short], [R, 66, short]];
-    case 7: return [[L, 8, short], [C, 8, short], [R, 8, short], [L, 66, short], [C, 66, short], [R, 66, short], [48, 4, 26]];
-    case 8: return [[L, 6, short], [R, 6, short], [L, 62, short], [R, 62, short], [C, 6, short], [C, 62, short], [L, 34, short], [R, 34, short]];
-    case 9: return [[L, 6, 38], [C, 6, 38], [R, 6, 38], [L, 50, 38], [C, 50, 38], [R, 50, 38], [L, 94, 38], [C, 94, 38], [R, 94, 38]];
+    case 2: return [[L, 16, long], [R, 16, long]];
+    case 3: return [[L, 16, long], [C, 16, long], [R, 28, long]];
+    case 4: return [[L, 12, short], [R, 12, short], [L, 70, short], [R, 70, short]];
+    case 5: return [[L, 12, short], [R, 12, short], [L, 70, short], [R, 70, short], [C, 24, mid]];
+    case 6: return [[L, 8, short], [C, 8, short], [R, 8, short], [L, 70, short], [C, 70, short], [R, 70, short]];
+    case 7: return [[L, 8, short], [C, 8, short], [R, 8, short], [L, 94, short], [C, 94, short], [R, 94, short], [50, 4, 28]];
+    case 8: return [[L, 8, 44], [R, 8, 44], [C, 8, 44], [L, 56, 44], [R, 56, 44], [C, 56, 44], [50, 8, 44], [50, 56, 44]];
+    case 9: return [[L, 6, 40], [C, 6, 40], [R, 6, 40], [L, 52, 40], [C, 52, 40], [R, 52, 40], [L, 98, 40], [C, 98, 40], [R, 98, 40]];
     default: return [];
   }
 }
@@ -132,31 +151,31 @@ function bambooPositions(n: number, w: number): Array<[number, number, number]> 
 const CHAR_NUMS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 
 function drawChars(ctx: CanvasRenderingContext2D, n: number) {
-  charText(ctx, CHAR_NUMS[n - 1], 50, 27, 42, INK);
-  charText(ctx, "萬", 50, 93, 72, INK);
+  charText(ctx, CHAR_NUMS[n - 1], 50, 34, 40, NAVY);
+  charText(ctx, "萬", 50, 96, 68, NAVY);
 }
 
 const WINDS = ["東", "南", "西", "北"];
 
 function drawWind(ctx: CanvasRenderingContext2D, i: number) {
-  charText(ctx, WINDS[i], 50, 65, 86, INK);
+  charText(ctx, WINDS[i], 50, 74, 88, NAVY);
 }
 
 function drawDragon(ctx: CanvasRenderingContext2D, i: number) {
-  if (i === 0) charText(ctx, "中", 50, 65, 94, RED);
-  else if (i === 1) charText(ctx, "發", 50, 65, 88, GREEN);
+  if (i === 0) charText(ctx, "中", 50, 74, 96, RED);
+  else if (i === 1) charText(ctx, "發", 50, 74, 90, GREEN);
   else {
-    // white dragon: blue oval frame on blank face
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = "#1f4e8c";
+    // white dragon: navy rounded rectangle frame
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = NAVY;
     ctx.beginPath();
-    ctx.ellipse(50, 65, 35, 51, 0, 0, Math.PI * 2);
+    ctx.roundRect(16, 34, 68, 82, 10);
     ctx.stroke();
   }
 }
 
 const FLOWERS = [
-  { ch: "梅", color: "#b0265f" },
+  { ch: "梅", color: "#8c2462" },
   { ch: "蘭", color: "#2e7d32" },
   { ch: "竹", color: "#1b5e20" },
   { ch: "菊", color: "#c8102e" },
@@ -164,8 +183,8 @@ const FLOWERS = [
 
 function drawFlower(ctx: CanvasRenderingContext2D, i: number) {
   const f = FLOWERS[i];
-  charText(ctx, f.ch, 50, 52, 78, f.color);
-  charText(ctx, "花", 50, 110, 34, f.color);
+  charText(ctx, f.ch, 50, 60, 74, f.color);
+  charText(ctx, "花", 50, 116, 30, f.color);
 }
 
 const SEASONS = [
@@ -177,8 +196,8 @@ const SEASONS = [
 
 function drawSeason(ctx: CanvasRenderingContext2D, i: number) {
   const s = SEASONS[i];
-  charText(ctx, s.ch, 50, 52, 78, s.color);
-  charText(ctx, "季", 50, 110, 34, s.color);
+  charText(ctx, s.ch, 50, 60, 74, s.color);
+  charText(ctx, "季", 50, 116, 30, s.color);
 }
 
 export const FACE_ART_SIZE = { w: FW, h: FH };
