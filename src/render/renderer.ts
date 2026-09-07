@@ -1,10 +1,16 @@
-// Canvas board renderer — Vita-style 3D aesthetic.
+// Canvas board renderer — tiles rebuilt from real Vita Mahjong pixel ground
+// truth (extracted from the actual game's board screenshot):
 //
-// Every tile is baked into an offscreen sprite: soft drop shadow, thick
-// ivory body (bottom + right bevel), cream face with vertical sheen, face
-// art. Layers lift up-left so elevation reads clearly; higher layers get
-// slightly larger shadows. Covered tiles are dimmed; selected glow amber;
-// hint pair pulses green.
+//   face:     flat ivory #f9f5ec with a barely-there (~2%) vertical tint
+//   outline:  ~2px charcoal #333339 around the face (AA'd rim outside)
+//   bottom:   ~6px near-black depth band #0a0a0a (the tile "thickness")
+//   shadow:   soft warm-brown cast BELOW the depth band onto the felt
+//   art:      bold navy #333957 glyphs, red #bd3333 accents
+//   gaps:     tile pitch = face + ~4% seam; rows stack face + depth band
+//
+// No bevels, no gloss, no rounded corners — Vita tiles are FLAT with a hard
+// dark contour and a dark base. Everything is baked into one offscreen
+// sprite per face and blitted in paint order.
 
 import { Board, REMOVED } from "../engine/board";
 import { TILE_H, TILE_W } from "../engine/layout";
@@ -15,31 +21,30 @@ export interface RenderOpts {
   hintPair: [number, number] | null;
 }
 
-/** Tile face size in grid half-units. Width 2 (one tile column), height
- *  2.78 for the classic ~1:1.39 portrait tile. */
+/** Tile face size in grid half-units (portrait 1:1.49 per Vita pixels). */
 const FACE_W = 2;
-const FACE_H = 2.78;
-/** Side/body thickness in face-height units (bottom bevel). */
-const SIDE = 0.18;
-/** Right bevel thickness in face-width units. */
-const SIDE_R = 0.12;
-/** Horizontal pitch between same-layer grid columns: full face + right
- *  bevel, mirroring ROW_PITCH. Without the bevel allowance each tile's 3D
- *  body overlaps the next column's face. */
-const COL_PITCH = FACE_W + SIDE_R;
-/** Vertical pitch between same-layer grid rows: full face + visible side
- *  strip. Rows must NOT overlap — each row shows its own face plus the 3D
- *  edge of the row above (the classic mahjong wall look). */
+const FACE_H = 2.98;
+/** Near-black depth band under the face (face-height units, ~6/261). */
+const SIDE = 0.16;
+/** Outline width in face-width units (~2px of 175). */
+const OUTLINE = 0.045;
+/** Horizontal pitch: face + seam (~4%). */
+const COL_PITCH = FACE_W * 1.04;
+/** Vertical pitch: face + depth band. */
 const ROW_PITCH = FACE_H + SIDE;
-/** Lift per layer, in face widths (negative = up-left). */
-const LIFT_X = -0.16;
-const LIFT_Y = -0.28;
-/** Sprite padding for the baked shadow (face units). */
-const SHADOW_PAD = 0.45;
+/** Lift per layer (up-left), face-width units — Vita stacks read as pure
+ *  vertical towers; keep lift minimal. */
+const LIFT_X = -0.04;
+const LIFT_Y = -0.22;
+/** Soft shadow below the tile (face-height units). */
+const SHADOW_H = 0.1;
 /** Padding around the board, css px. */
 const PAD = 12;
-/** Visual inset per tile (hairline seam; geometry unchanged). */
-const DRAW_SCALE = 0.99;
+
+const C_FACE_TOP = "#f9f5ec";
+const C_FACE_BOT = "#f7f2e7";
+const C_OUTLINE = "#333339";
+const C_DEPTH = "#0a0a0a";
 
 interface Placed {
   idx: number;
@@ -62,34 +67,28 @@ interface SpriteEntry {
 
 const spriteCache = new Map<number, SpriteEntry>();
 
-/** Map a slot's grid x to face-width units. One grid column (Δx = TILE_W)
- *  advances a full COL_PITCH so each tile's face AND right bevel have their
- *  own space — columns never overlap. Odd half-unit x (straddle offsets)
- *  centers an upper tile on the seam between two lower columns. */
+/** Map grid x to face-width units (full pitch per column, no overlap). */
 function slotX(s: { x: number; z: number }): number {
   return (s.x / TILE_W) * COL_PITCH + (s.z - 1) * LIFT_X;
 }
 
-/** Map a slot's grid y to face-height units. One grid row (Δy = TILE_H)
- *  advances a full ROW_PITCH so same-layer rows NEVER overlap — each row
- *  shows its face plus the 3D edge of the row above. */
+/** Map grid y to face-height units (face + depth band per row). */
 function slotY(s: { y: number; z: number }): number {
   return (s.y / TILE_H) * ROW_PITCH + (s.z - 1) * LIFT_Y;
 }
 
-/** Bake the full 3D tile sprite for a face at the given unit px. */
+/** Bake the Vita-style tile sprite for a face at unit px. */
 function tileSprite(face: number, u: number): HTMLCanvasElement {
   const hit = spriteCache.get(face);
   if (hit && Math.abs(hit.unit - u) < 0.5) return hit.canvas;
 
   const fw = Math.max(8, Math.round(FACE_W * u));
-  const fh = Math.max(11, Math.round(FACE_H * u));
-  const side = Math.max(2, Math.round(SIDE * u));
-  const sideR = Math.max(1, Math.round(SIDE_R * u));
-  const pad = Math.max(3, Math.round(SHADOW_PAD * u));
-  const w = fw + sideR + pad * 2;
-  const h = fh + side + pad * 2;
-  const rad = Math.max(2, Math.round(u * 0.22));
+  const fh = Math.max(12, Math.round(FACE_H * u));
+  const side = Math.max(2, Math.round(SIDE * fh));
+  const ol = Math.max(1, Math.round(OUTLINE * fw));
+  const shH = Math.max(2, Math.round(SHADOW_H * fh));
+  const w = fw + ol * 2;
+  const h = fh + ol * 2 + side + shH;
 
   const c = document.createElement("canvas");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -98,63 +97,35 @@ function tileSprite(face: number, u: number): HTMLCanvasElement {
   const ctx = c.getContext("2d")!;
   ctx.scale(dpr, dpr);
 
-  const bx = pad;
-  const by = pad;
-  const bw = fw + sideR;
-  const bh = fh + side;
+  // soft warm-brown shadow below the tile
+  const sg = ctx.createLinearGradient(0, ol + fh + side, 0, ol + fh + side + shH);
+  sg.addColorStop(0, "rgba(24, 20, 8, 0.30)");
+  sg.addColorStop(1, "rgba(24, 20, 8, 0)");
+  ctx.fillStyle = sg;
+  ctx.fillRect(ol * 0.4, ol + fh + side, fw + ol * 1.2, shH);
 
-  // body with baked drop shadow
-  ctx.save();
-  ctx.shadowColor = "rgba(12, 30, 20, 0.42)";
-  ctx.shadowBlur = Math.max(2, u * 0.3);
-  ctx.shadowOffsetY = Math.max(1, u * 0.14);
-  const bodyGrad = ctx.createLinearGradient(0, by, 0, by + bh);
-  bodyGrad.addColorStop(0, "#efe3c0");
-  bodyGrad.addColorStop(1, "#c9ab6e");
-  ctx.fillStyle = bodyGrad;
-  ctx.beginPath();
-  ctx.roundRect(bx, by, bw, bh, rad);
-  ctx.fill();
-  ctx.restore();
+  // depth band (charcoal -> near-black)
+  const dg = ctx.createLinearGradient(0, ol + fh, 0, ol + fh + side);
+  dg.addColorStop(0, "#3a352c");
+  dg.addColorStop(0.35, "#1d1a14");
+  dg.addColorStop(1, C_DEPTH);
+  ctx.fillStyle = dg;
+  ctx.fillRect(ol, ol + fh, fw, side);
 
-  // right bevel shading (light from top-left)
-  ctx.fillStyle = "rgba(120, 90, 40, 0.30)";
-  ctx.beginPath();
-  ctx.roundRect(bx + fw, by, sideR, bh, [0, rad, rad, 0]);
-  ctx.fill();
-
-  // bottom lip highlight
-  ctx.fillStyle = "rgba(255, 250, 230, 0.55)";
-  ctx.beginPath();
-  ctx.roundRect(bx, by + fh - 1, fw, 2, 1);
-  ctx.fill();
-
-  // face: ivory sheen
-  const faceGrad = ctx.createLinearGradient(0, by, 0, by + fh);
-  faceGrad.addColorStop(0, "#fffdf4");
-  faceGrad.addColorStop(0.55, "#f9f3e0");
-  faceGrad.addColorStop(1, "#efe5c8");
-  ctx.fillStyle = faceGrad;
-  ctx.beginPath();
-  ctx.roundRect(bx, by, fw, fh, rad);
-  ctx.fill();
-
-  // inner top highlight (glazed edge)
-  ctx.strokeStyle = "rgba(255,255,255,0.8)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(bx + 1, by + 1, fw - 2, fh - 2, Math.max(1, rad - 1));
-  ctx.stroke();
-
-  // face outline
-  ctx.strokeStyle = "#d6c69c";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(bx + 0.5, by + 0.5, fw - 1, fh - 1, rad);
-  ctx.stroke();
+  // face: flat ivory, ~2% tint
+  const fg = ctx.createLinearGradient(0, ol, 0, ol + fh);
+  fg.addColorStop(0, C_FACE_TOP);
+  fg.addColorStop(1, C_FACE_BOT);
+  ctx.fillStyle = fg;
+  ctx.fillRect(ol, ol, fw, fh);
 
   // art
-  ctx.drawImage(faceCanvas(face), bx + fw * 0.09, by + fh * 0.05, fw * 0.82, fh * 0.9);
+  ctx.drawImage(faceCanvas(face), ol + fw * 0.1, ol + fh * 0.045, fw * 0.8, fh * 0.91);
+
+  // hard charcoal outline around the face (and down the sides of the band)
+  ctx.strokeStyle = C_OUTLINE;
+  ctx.lineWidth = ol * 2 >= 3 ? 2 : 1;
+  ctx.strokeRect(ol + 0.5, ol + 0.5, fw - 1, fh - 1);
 
   spriteCache.set(face, { canvas: c, unit: u });
   return c;
@@ -193,10 +164,10 @@ export class Renderer {
     for (const s of this.board.layout.slots) {
       const x = slotX(s);
       const y = slotY(s);
-      minX = Math.min(minX, x - SHADOW_PAD);
-      maxX = Math.max(maxX, x + FACE_W + SIDE_R + SHADOW_PAD);
-      minY = Math.min(minY, y - SHADOW_PAD);
-      maxY = Math.max(maxY, y + FACE_H + SIDE + SHADOW_PAD);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x + FACE_W);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y + FACE_H + SIDE + SHADOW_H);
     }
     const wU = maxX - minX;
     const hU = maxY - minY;
@@ -222,11 +193,11 @@ export class Renderer {
   }
 
   /** Slot index at canvas point (css px), topmost first; null if none.
-   *  The hit rect covers face + side strip (a tile's visible body). */
+   *  Hit rect covers face + depth band. */
   hitTest(px: number, py: number): number | null {
     if (!this.board) return null;
     const u = this.unit;
-    const fw = (FACE_W + SIDE_R) * u;
+    const fw = FACE_W * u;
     const fh = (FACE_H + SIDE) * u;
     for (let i = this.placed.length - 1; i >= 0; i--) {
       const p = this.placed[i];
@@ -272,79 +243,60 @@ export class Renderer {
     const board = this.board;
     if (!board) return;
     const u = this.unit;
-    const side = Math.max(2, Math.round(SIDE * u));
-    const sideR = Math.max(1, Math.round(SIDE_R * u));
-    const pad = Math.max(3, Math.round(SHADOW_PAD * u));
-    const rad = Math.max(2, Math.round(u * 0.22));
 
     for (const p of this.placed) {
       if (board.faces[p.idx] === REMOVED) continue;
       const face = board.faces[p.idx];
-      const sprite = tileSprite(face, u * DRAW_SCALE);
+      const sprite = tileSprite(face, u);
       const r = this.tileRect(p);
-      // inset the drawn sprite within the cell (gap between tiles)
-      const insetX = (r.fw * (1 - DRAW_SCALE)) / 2;
-      const insetY = (r.fh * (1 - DRAW_SCALE)) / 2;
+      const ol = Math.max(1, Math.round(OUTLINE * r.fw));
+      const side = Math.max(2, Math.round(SIDE * r.fh));
+      // sprite css size (drawn at dpr internally)
       const sp = sprite.width / Math.min(dpr, 2);
       const sh = sprite.height / Math.min(dpr, 2);
-      // sprite top-left: face rect inset by inset, minus sprite pad
-      const spritePad = Math.max(3, Math.round(SHADOW_PAD * u * DRAW_SCALE));
-      ctx.drawImage(sprite, r.x + insetX - spritePad, r.y + insetY - spritePad, sp, sh);
+      ctx.drawImage(sprite, r.x - ol, r.y - ol, sp, sh);
 
       const covered = board.coveredAbove(p.idx);
       const selected = this.opts.selected === p.idx;
       const hinted = this.opts.hintPair !== null && (this.opts.hintPair[0] === p.idx || this.opts.hintPair[1] === p.idx);
 
-      // covered dim over face+body
+      // covered: Vita dims toward the felt tone
       if (covered && !selected && !hinted) {
-        ctx.fillStyle = "rgba(28, 42, 30, 0.38)";
-        ctx.beginPath();
-        ctx.roundRect(r.x, r.y, r.fw + sideR, r.fh + side, rad);
-        ctx.fill();
+        ctx.fillStyle = "rgba(20, 46, 32, 0.42)";
+        ctx.fillRect(r.x, r.y, r.fw, r.fh + side);
       }
 
       if (selected) {
-        ctx.save();
-        ctx.shadowColor = "rgba(255, 176, 32, 0.9)";
-        ctx.shadowBlur = u * 0.5;
-        ctx.strokeStyle = "#ffb020";
-        ctx.lineWidth = Math.max(2, u * 0.13);
-        ctx.beginPath();
-        ctx.roundRect(r.x - 1.5, r.y - 1.5, r.fw + sideR + 3, r.fh + side + 3, rad + 2);
-        ctx.stroke();
-        ctx.restore();
+        ctx.strokeStyle = "#ffd23f";
+        ctx.lineWidth = Math.max(2, u * 0.09);
+        ctx.strokeRect(r.x - 1, r.y - 1, r.fw + 2, r.fh + side + 2);
       }
 
       if (hinted) {
         const a = 0.55 + 0.45 * Math.sin(now / 150);
-        ctx.save();
-        ctx.shadowColor = "rgba(46, 204, 113, 0.9)";
-        ctx.shadowBlur = u * 0.5;
-        ctx.strokeStyle = `rgba(56, 224, 125, ${a.toFixed(3)})`;
-        ctx.lineWidth = Math.max(2, u * 0.13);
-        ctx.beginPath();
-        ctx.roundRect(r.x - 1.5, r.y - 1.5, r.fw + sideR + 3, r.fh + side + 3, rad + 2);
-        ctx.stroke();
-        ctx.restore();
+        ctx.strokeStyle = `rgba(64, 226, 133, ${a.toFixed(3)})`;
+        ctx.lineWidth = Math.max(2, u * 0.09);
+        ctx.strokeRect(r.x - 1, r.y - 1, r.fw + 2, r.fh + side + 2);
       }
     }
 
-    // pop animations (fading, growing tiles)
+    // pop animations
     const POP_MS = 300;
     this.pops = this.pops.filter((p) => now - p.t0 < POP_MS);
     for (const p of this.pops) {
       const t = (now - p.t0) / POP_MS;
       const r = this.tileRect(p);
-      const grow = 1 + t * 0.4;
+      const ol = Math.max(1, Math.round(OUTLINE * r.fw));
+      const grow = 1 + t * 0.35;
       const cx = r.x + r.fw / 2;
       const cy = r.y + r.fh / 2;
-      const w2 = (r.fw * grow) / 2;
-      const h2 = (r.fh * grow) / 2;
+      const w2 = (r.fw * grow) / 2 + ol;
+      const h2 = (r.fh * grow) / 2 + ol;
       ctx.globalAlpha = 1 - t;
       const sprite = tileSprite(p.face, u);
-      const sw = sprite.width / Math.min(dpr, 2);
-      const shh = sprite.height / Math.min(dpr, 2);
-      ctx.drawImage(sprite, cx - (w2 + pad), cy - (h2 + pad), (w2 + pad) * 2 * (sw / (r.fw + pad * 2 + sideR)), (h2 + pad) * 2 * (shh / (r.fh + pad * 2 + side)));
+      const sp = sprite.width / Math.min(dpr, 2);
+      const sh = sprite.height / Math.min(dpr, 2);
+      ctx.drawImage(sprite, cx - (w2 * sp) / (r.fw + ol * 2), cy - (h2 * sh) / (r.fh + ol * 2 + Math.max(2, Math.round(SHADOW_H * r.fh))), sp * grow, sh * grow);
       ctx.globalAlpha = 1;
     }
   }

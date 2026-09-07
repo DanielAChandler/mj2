@@ -6,10 +6,10 @@
 const FW = 100; // face art width
 const FH = 130; // face art height
 
-const NAVY = "#29416f";
-const GREEN = "#004b00";
-const RED = "#c8102e";
-const INK = "#1c1c1c";
+const NAVY = "#333957";
+const GREEN = "#1d5c2f";
+const RED = "#bd3333";
+const INK = "#333339";
 const CJK = "'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif";
 
 const cache = new Map<number, HTMLCanvasElement>();
