@@ -76,15 +76,15 @@ function drawFace(ctx: CanvasRenderingContext2D, face: number) {
 }
 
 const DOT_PATTERNS: Record<number, Array<[number, number, number, boolean]>> = {
-  1: [[50, 65, 31, true]],
-  2: [[50, 38, 21, false], [50, 92, 21, false]],
-  3: [[50, 33, 17, false], [50, 65, 17, true], [50, 97, 17, false]],
-  4: [[30, 45, 15, false], [70, 45, 15, false], [30, 85, 15, false], [70, 85, 15, false]],
-  5: [[27, 42, 13, false], [73, 42, 13, false], [27, 88, 13, false], [73, 88, 13, false], [50, 65, 13, true]],
-  6: [[30, 37, 12, false], [30, 65, 12, false], [30, 93, 12, false], [70, 37, 12, false], [70, 65, 12, false], [70, 93, 12, false]],
-  7: [[30, 35, 10, false], [30, 62, 10, false], [30, 89, 10, false], [70, 35, 10, false], [70, 62, 10, false], [70, 89, 10, false], [50, 48, 10, true]],
-  8: [[30, 33, 10, false], [30, 54, 10, false], [30, 75, 10, false], [30, 96, 10, false], [70, 33, 10, false], [70, 54, 10, false], [70, 75, 10, false], [70, 96, 10, false]],
-  9: [[26, 41, 9, false], [50, 41, 9, false], [74, 41, 9, false], [26, 65, 9, false], [50, 65, 9, true], [74, 65, 9, false], [26, 89, 9, false], [50, 89, 9, false], [74, 89, 9, false]],
+  1: [[50, 65, 40, true]],
+  2: [[50, 32, 27, false], [50, 98, 27, false]],
+  3: [[50, 24, 21, false], [50, 65, 22, true], [50, 106, 21, false]],
+  4: [[27, 41, 19, false], [73, 41, 19, false], [27, 89, 19, false], [73, 89, 19, false]],
+  5: [[24, 37, 16, false], [76, 37, 16, false], [24, 93, 16, false], [76, 93, 16, false], [50, 65, 17, true]],
+  6: [[27, 30, 15, false], [27, 65, 15, false], [27, 100, 15, false], [73, 30, 15, false], [73, 65, 15, false], [73, 100, 15, false]],
+  7: [[27, 28, 13, false], [27, 63, 13, false], [27, 98, 13, false], [73, 28, 13, false], [73, 63, 13, false], [73, 98, 13, false], [50, 42, 13, true]],
+  8: [[27, 26, 12, false], [27, 54, 12, false], [27, 82, 12, false], [27, 110, 12, false], [73, 26, 12, false], [73, 54, 12, false], [73, 82, 12, false], [73, 110, 12, false]],
+  9: [[22, 38, 12, false], [50, 38, 12, false], [78, 38, 12, false], [22, 65, 12, false], [50, 65, 12, true], [78, 65, 12, false], [22, 92, 12, false], [50, 92, 12, false], [78, 92, 12, false]],
 };
 
 function drawDots(ctx: CanvasRenderingContext2D, n: number) {
@@ -94,8 +94,8 @@ function drawDots(ctx: CanvasRenderingContext2D, n: number) {
 function drawBamboo(ctx: CanvasRenderingContext2D, n: number) {
   if (n === 1) {
     // bird-on-bamboo stylized: one thick stick + red crown dot
-    bambooStick(ctx, 43, 36, 14, 58);
-    dot(ctx, 50, 24, 9, RED);
+    bambooStick(ctx, 41, 30, 18, 72);
+    dot(ctx, 50, 16, 11, RED);
     return;
   }
   const cols = n === 2 || n === 4 || n === 6 || n === 8 ? 2 : n === 5 || n === 7 || n === 9 ? (n === 9 ? 3 : 2) : 2;
@@ -110,21 +110,21 @@ function drawBamboo(ctx: CanvasRenderingContext2D, n: number) {
 
 function bambooPositions(n: number, w: number): Array<[number, number, number]> {
   void w;
-  const short = 40;
-  const long = 84;
-  const mid = 62;
-  const L = 14;
-  const R = 74;
-  const C = 44;
+  const short = 46;
+  const long = 100;
+  const mid = 72;
+  const L = 10;
+  const R = 86;
+  const C = 48;
   switch (n) {
-    case 2: return [[L, 18, long], [R, 18, long]];
+    case 2: return [[L, 15, long], [R, 15, long]];
     case 3: return [[L, 15, long], [C, 15, long], [R, 15, long]];
-    case 4: return [[L, 14, short], [R, 14, short], [L, 60, short], [R, 60, short]];
-    case 5: return [[L, 12, short], [R, 12, short], [L, 60, short], [R, 60, short], [C, 30, mid]];
-    case 6: return [[L, 10, short], [C, 10, short], [R, 10, short], [L, 60, short], [C, 60, short], [R, 60, short]];
-    case 7: return [[L, 10, short], [C, 10, short], [R, 10, short], [L, 60, short], [C, 60, short], [R, 60, short], [44, 8, 22]];
-    case 8: return [[L, 8, short], [R, 8, short], [L, 54, short], [R, 54, short], [C, 8, short], [C, 54, short], [L, 30, short], [R, 30, short]];
-    case 9: return [[L, 8, 36], [C, 8, 36], [R, 8, 36], [L, 52, 36], [C, 52, 36], [R, 52, 36], [L, 96, 36], [C, 96, 36], [R, 96, 36]];
+    case 4: return [[L, 12, short], [R, 12, short], [L, 66, short], [R, 66, short]];
+    case 5: return [[L, 12, short], [R, 12, short], [L, 66, short], [R, 66, short], [C, 29, mid]];
+    case 6: return [[L, 8, short], [C, 8, short], [R, 8, short], [L, 66, short], [C, 66, short], [R, 66, short]];
+    case 7: return [[L, 8, short], [C, 8, short], [R, 8, short], [L, 66, short], [C, 66, short], [R, 66, short], [48, 4, 26]];
+    case 8: return [[L, 6, short], [R, 6, short], [L, 62, short], [R, 62, short], [C, 6, short], [C, 62, short], [L, 34, short], [R, 34, short]];
+    case 9: return [[L, 6, 38], [C, 6, 38], [R, 6, 38], [L, 50, 38], [C, 50, 38], [R, 50, 38], [L, 94, 38], [C, 94, 38], [R, 94, 38]];
     default: return [];
   }
 }
@@ -132,25 +132,25 @@ function bambooPositions(n: number, w: number): Array<[number, number, number]> 
 const CHAR_NUMS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 
 function drawChars(ctx: CanvasRenderingContext2D, n: number) {
-  charText(ctx, CHAR_NUMS[n - 1], 50, 40, 34, INK);
-  charText(ctx, "萬", 50, 92, 46, INK);
+  charText(ctx, CHAR_NUMS[n - 1], 50, 27, 42, INK);
+  charText(ctx, "萬", 50, 93, 72, INK);
 }
 
 const WINDS = ["東", "南", "西", "北"];
 
 function drawWind(ctx: CanvasRenderingContext2D, i: number) {
-  charText(ctx, WINDS[i], 50, 65, 68, INK);
+  charText(ctx, WINDS[i], 50, 65, 86, INK);
 }
 
 function drawDragon(ctx: CanvasRenderingContext2D, i: number) {
-  if (i === 0) charText(ctx, "中", 50, 65, 78, RED);
-  else if (i === 1) charText(ctx, "發", 50, 65, 70, GREEN);
+  if (i === 0) charText(ctx, "中", 50, 65, 94, RED);
+  else if (i === 1) charText(ctx, "發", 50, 65, 88, GREEN);
   else {
     // white dragon: blue oval frame on blank face
-    ctx.lineWidth = 7;
+    ctx.lineWidth = 8;
     ctx.strokeStyle = "#1f4e8c";
     ctx.beginPath();
-    ctx.ellipse(50, 65, 30, 44, 0, 0, Math.PI * 2);
+    ctx.ellipse(50, 65, 35, 51, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
 }
@@ -164,8 +164,8 @@ const FLOWERS = [
 
 function drawFlower(ctx: CanvasRenderingContext2D, i: number) {
   const f = FLOWERS[i];
-  charText(ctx, f.ch, 50, 56, 60, f.color);
-  charText(ctx, "花", 50, 108, 26, f.color);
+  charText(ctx, f.ch, 50, 52, 78, f.color);
+  charText(ctx, "花", 50, 110, 34, f.color);
 }
 
 const SEASONS = [
@@ -177,8 +177,8 @@ const SEASONS = [
 
 function drawSeason(ctx: CanvasRenderingContext2D, i: number) {
   const s = SEASONS[i];
-  charText(ctx, s.ch, 50, 56, 60, s.color);
-  charText(ctx, "季", 50, 108, 26, s.color);
+  charText(ctx, s.ch, 50, 52, 78, s.color);
+  charText(ctx, "季", 50, 110, 34, s.color);
 }
 
 export const FACE_ART_SIZE = { w: FW, h: FH };

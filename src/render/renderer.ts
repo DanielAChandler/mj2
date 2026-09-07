@@ -119,8 +119,8 @@ function tileSprite(face: number, u: number): HTMLCanvasElement {
   ctx.fillStyle = fg;
   ctx.fillRect(ol, ol, fw, fh);
 
-  // art
-  ctx.drawImage(faceCanvas(face), ol + fw * 0.1, ol + fh * 0.045, fw * 0.8, fh * 0.91);
+  // art fills the face (Vita glyphs span ~80% of the face)
+  ctx.drawImage(faceCanvas(face), ol + fw * 0.02, ol + fh * 0.015, fw * 0.96, fh * 0.97);
 
   // hard charcoal outline around the face (and down the sides of the band)
   ctx.strokeStyle = C_OUTLINE;
