@@ -3,6 +3,8 @@
 
 import { GameSession, type SessionEvent } from "./game/session";
 import { sfx, setMuted } from "./game/sound";
+import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, vitaSheet } from "./render/vitaassets";
+import { faceCanvas } from "./render/tileart";
 import {
   loadProgress, saveProgress, loadSettings, saveSettings,
   loadSession, saveSession, clearSession,
@@ -191,6 +193,46 @@ function updateHud() {
   $("#pu-hints").textContent = String(session.powerups.hints);
   $("#pu-shuffles").textContent = String(session.powerups.shuffles);
   $("#pu-undos").textContent = String(session.powerups.undos);
+  updateTray();
+}
+
+/** Mini-tile canvas for the tray (sprite sheet cell drawn small). */
+function trayTile(face: number): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  const scale = 2; // drawn at 2x for crispness, displayed at 50px height
+  c.width = Math.round(FACE_TEX_W * scale);
+  c.height = Math.round(FACE_TEX_H * scale);
+  const ctx = c.getContext("2d")!;
+  const sheet = vitaSheet();
+  if (sheet) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sheet, (face % SHEET_COLS) * FACE_TEX_W, Math.floor(face / SHEET_COLS) * FACE_TEX_H, FACE_TEX_W, FACE_TEX_H, 0, 0, c.width, c.height);
+  } else {
+    const art = faceCanvas(face);
+    ctx.drawImage(art, 0, 0, c.width, c.height);
+  }
+  return c;
+}
+
+/** Buffer tray: the last 4 matched tiles (2 moves), newest on the left.
+ *  Derived purely from board.history so undo/shuffle/restart/resume stay
+ *  consistent with zero engine changes. */
+function updateTray() {
+  if (!session) return;
+  const tray = document.getElementById("tray");
+  if (!tray) return;
+  const h = session.board.history;
+  const tiles: Array<{ face: number; isA: boolean; mv: number }> = [];
+  for (let m = Math.max(0, h.length - 2); m < h.length; m++) {
+    tiles.push({ face: h[m].faceA, isA: true, mv: m });
+    tiles.push({ face: h[m].faceB, isA: false, mv: m });
+  }
+  // newest move first (left side)
+  tiles.reverse();
+  tray.textContent = "";
+  for (const t of tiles) {
+    tray.appendChild(trayTile(t.face));
+  }
 }
 
 function persistSession() {

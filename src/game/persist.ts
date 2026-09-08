@@ -59,7 +59,8 @@ export function saveProgress(p: Progress) {
 }
 
 export function loadSettings(): Settings {
-  return read<Settings>(KEY_SETTINGS, { muted: false });
+  // sound off by default (personal preference); persisted override wins
+  return read<Settings>(KEY_SETTINGS, { muted: true });
 }
 
 export function saveSettings(s: Settings) {
