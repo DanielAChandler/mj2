@@ -5,6 +5,7 @@ import { GameSession, type SessionEvent } from "./game/session";
 import { sfx, setMuted } from "./game/sound";
 import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, vitaSheet } from "./render/vitaassets";
 import { faceCanvas } from "./render/tileart";
+import { faceId } from "./engine/tiles";
 import {
   loadProgress, saveProgress, loadSettings, saveSettings,
   loadSession, saveSession, clearSession,
@@ -17,7 +18,7 @@ import { Renderer } from "./render/renderer";
 import { REMOVED } from "./engine/board";
 import "./style.css";
 
-type Screen = "home" | "levels" | "play";
+type Screen = "home" | "levels" | "play" | "tiles";
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T =>
   document.querySelector(sel) as T;
@@ -40,6 +41,7 @@ function showScreen(name: Screen) {
   $("#screen-home").classList.toggle("hidden", name !== "home");
   $("#screen-levels").classList.toggle("hidden", name !== "levels");
   $("#screen-play").classList.toggle("hidden", name !== "play");
+  $("#screen-tiles").classList.toggle("hidden", name !== "tiles");
   $("#topbar").classList.toggle("hidden", name === "home");
 }
 
@@ -282,6 +284,92 @@ function trayTile(face: number): HTMLCanvasElement {
   return c;
 }
 
+/** A gallery tile: sheet sprite if available, else the hand-drawn fallback
+ *  baked onto a body. */
+function galleryTile(face: number, useSheet: boolean): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  const sheet = vitaSheet();
+  if (useSheet && sheet) {
+    const scale = 2;
+    c.width = Math.round(FACE_TEX_W * scale);
+    c.height = Math.round(FACE_TEX_H * scale);
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sheet, (face % SHEET_COLS) * FACE_TEX_W, Math.floor(face / SHEET_COLS) * FACE_TEX_H, FACE_TEX_W, FACE_TEX_H, 0, 0, c.width, c.height);
+    return c;
+  }
+  // fallback: art + a simple body
+  const fw = 60, fh = 81, wall = 5, ol = 2;
+  c.width = (fw + wall + ol * 2) * 2;
+  c.height = (fh + wall + ol * 2) * 2;
+  const ctx = c.getContext("2d")!;
+  ctx.scale(2, 2);
+  ctx.fillStyle = "#fcfdf3";
+  ctx.beginPath();
+  ctx.roundRect(ol, ol, fw + wall, fh + wall, 4);
+  ctx.fill();
+  ctx.fillStyle = "#9aaeb2";
+  ctx.fillRect(ol + fw, ol + 4, wall, fh + wall - 8);
+  ctx.fillStyle = "#c9d2cd";
+  ctx.fillRect(ol + 4, ol + fh, fw + wall - 8, wall);
+  ctx.drawImage(faceCanvas(face), ol + fw * 0.05, ol + fh * 0.03, fw * 0.9, fh * 0.94);
+  ctx.strokeStyle = "#053e02";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(ol, ol, fw + wall, fh + wall, 4);
+  ctx.stroke();
+  return c;
+}
+
+const GALLERY_FAMILIES: Array<{ label: string; faces: number[] }> = [
+  { label: "Dots", faces: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+  { label: "Bamboo", faces: [9, 10, 11, 12, 13, 14, 15, 16, 17] },
+  { label: "Characters", faces: [18, 19, 20, 21, 22, 23, 24, 25, 26] },
+  { label: "Winds", faces: [27, 28, 29, 30] },
+  { label: "Dragons", faces: [31, 32, 33] },
+  { label: "Flowers", faces: [34, 35, 36, 37] },
+  { label: "Seasons", faces: [38, 39, 40, 41] },
+];
+
+/** Tile gallery: every face in each art theme. */
+function renderTileGallery() {
+  const wrap = document.getElementById("tiles-themes");
+  if (!wrap) return;
+  wrap.textContent = "";
+  const themes: Array<{ name: string; useSheet: boolean }> = [
+    { name: "Classic (Vita)", useSheet: true },
+    { name: "Hand-drawn", useSheet: false },
+  ];
+  for (const th of themes) {
+    const sec = document.createElement("div");
+    sec.className = "gallery-theme";
+    const h = document.createElement("div");
+    h.className = "gallery-theme-title";
+    h.textContent = th.name;
+    sec.appendChild(h);
+    for (const fam of GALLERY_FAMILIES) {
+      const fr = document.createElement("div");
+      fr.className = "gallery-family";
+      const t = document.createElement("div");
+      t.className = "gallery-family-title";
+      t.textContent = fam.label;
+      fr.appendChild(t);
+      const grid = document.createElement("div");
+      grid.className = "gallery-grid";
+      for (const f of fam.faces) {
+        const cell = document.createElement("div");
+        cell.className = "gallery-cell";
+        cell.title = faceId(f);
+        cell.appendChild(galleryTile(f, th.useSheet));
+        grid.appendChild(cell);
+      }
+      fr.appendChild(grid);
+      sec.appendChild(fr);
+    }
+    wrap.appendChild(sec);
+  }
+}
+
 /** Buffer tray: the unmatched lifted tiles (oldest left, newest right),
  *  fixed 4 slots — empty slots render as outline placeholders. */
 function updateTray() {
@@ -393,6 +481,13 @@ function bindUi() {
     chapterCursor = chapterOf(Math.min(progress.unlocked, TOTAL_LEVELS));
     renderLevels();
     showScreen("levels");
+  });
+  $("#btn-tiles").addEventListener("click", () => {
+    renderTileGallery();
+    showScreen("tiles");
+  });
+  $("#tiles-back").addEventListener("click", () => {
+    showScreen("home");
   });
   $("#btn-mute").addEventListener("click", () => {
     settings.muted = !settings.muted;

@@ -233,6 +233,49 @@ body {
   font-size: 13px;
   padding: 8px 14px;
 }
+/* ---------- tile gallery ---------- */
+#screen-tiles {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#tiles-themes {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 24px;
+}
+.gallery-theme {
+  margin-bottom: 26px;
+}
+.gallery-theme-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 10px;
+}
+.gallery-family {
+  margin-bottom: 14px;
+}
+.gallery-family-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: rgba(255,255,255,.75);
+  margin-bottom: 6px;
+}
+.gallery-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gallery-cell {
+  line-height: 0;
+}
+.gallery-cell canvas {
+  height: 64px;
+  width: auto;
+}
 #board-wrap {
   flex: 1;
   min-height: 0;
