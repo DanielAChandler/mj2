@@ -11,7 +11,7 @@
 import { Board, REMOVED } from "../engine/board";
 import { TILE_H, TILE_W } from "../engine/layout";
 import { faceCanvas } from "./tileart";
-import { SHEET_COLS, vitaSheet } from "./vitaassets";
+import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, vitaSheet } from "./vitaassets";
 
 export interface RenderOpts {
   selected: number | null; // slot index
@@ -259,11 +259,11 @@ export class Renderer {
     if (!board) return;
     const u = this.unit;
     const sheet = vitaSheet();
-    // full texture (271x333) mapped onto face + walls
-    const TEX_W = 271, TEX_H = 333;
+    // full texture cell mapped onto face + walls
+    const TEX_W = FACE_TEX_W, TEX_H = FACE_TEX_H;
     const fw = FACE_W * u;
     const fh = FACE_H * u;
-    const drawW = fw * (TEX_W / 240); // texture incl. walls per atlas anatomy
+    const drawW = fw * (271 / 240);
     const drawH = fh * (333 / 307);
 
     for (const p of this.placed) {

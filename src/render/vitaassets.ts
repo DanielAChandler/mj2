@@ -7,6 +7,7 @@
 
 export const SHEET_COLS = 7;
 export const SHEET_ROWS = 6;
+/** Exact cell size in the packed sheet (271x333 downscaled 2/3). */
 export const FACE_TEX_W = 180;
 export const FACE_TEX_H = 222;
 
