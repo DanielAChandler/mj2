@@ -72,6 +72,7 @@ export interface SavedSession {
   layoutId: string;
   faces: number[];
   historyLen: number;
+  buffer: Array<{ face: number; idx: number }>;
   score: number;
   combo: number;
   hintsUsed: number;

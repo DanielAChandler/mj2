@@ -142,13 +142,14 @@ function bindBoardEvents(canvas: HTMLCanvasElement) {
 function onSessionEvent(e: SessionEvent) {
   if (!session || !renderer) return;
   switch (e.type) {
-    case "select":
-      renderer.setOpts({ selected: e.idx, hintPair: session.hintPair });
-      if (e.idx !== null) sfx.tap();
+    case "lift":
+      renderer.pop(e.idx, e.face);
+      sfx.tap();
+      updateHud();
+      persistSession();
       break;
     case "moved":
       renderer.pop(e.a, e.face);
-      renderer.pop(e.b, e.face);
       sfx.match();
       updateHud();
       persistSession();
@@ -214,24 +215,21 @@ function trayTile(face: number): HTMLCanvasElement {
   return c;
 }
 
-/** Buffer tray: the last 4 matched tiles (2 moves), newest on the left.
- *  Derived purely from board.history so undo/shuffle/restart/resume stay
- *  consistent with zero engine changes. */
+/** Buffer tray: the unmatched lifted tiles (oldest left, newest right),
+ *  fixed 4 slots — empty slots render as outline placeholders. */
 function updateTray() {
   if (!session) return;
   const tray = document.getElementById("tray");
   if (!tray) return;
-  const h = session.board.history;
-  const tiles: Array<{ face: number; isA: boolean; mv: number }> = [];
-  for (let m = Math.max(0, h.length - 2); m < h.length; m++) {
-    tiles.push({ face: h[m].faceA, isA: true, mv: m });
-    tiles.push({ face: h[m].faceB, isA: false, mv: m });
-  }
-  // newest move first (left side)
-  tiles.reverse();
   tray.textContent = "";
-  for (const t of tiles) {
-    tray.appendChild(trayTile(t.face));
+  for (let i = 0; i < 4; i++) {
+    const t = session.buffer[i];
+    if (t) tray.appendChild(trayTile(t.face));
+    else {
+      const ph = document.createElement("div");
+      ph.className = "tray-slot";
+      tray.appendChild(ph);
+    }
   }
 }
 
@@ -241,11 +239,11 @@ function persistSession() {
     // untouched board: nothing to resume
     return;
   }
-  const { level, layoutId, faces, historyLen, score, combo, hintsUsed, shufflesUsed, undosUsed, powerups } = session.serialize();
-  const facesNoHistory = faces.slice(0, faces.length);
+  const { level, layoutId, faces, historyLen, buffer, score, combo, hintsUsed, shufflesUsed, undosUsed, powerups } = session.serialize();
   saveSession({
-    level, layoutId, faces: facesNoHistory, historyLen, score, combo,
-    hintsUsed, shufflesUsed, undosUsed, powerups,
+    level, layoutId, faces, historyLen,
+    buffer: buffer.map((t) => ({ face: t.face, idx: t.idx })),
+    score, combo, hintsUsed, shufflesUsed, undosUsed, powerups,
   });
 }
 
@@ -261,10 +259,11 @@ function resumeSession(): boolean {
       powerups: s.powerups,
       onEvent: onSessionEvent,
     });
-    // restore board state
+    // restore board + buffer state
     sess.board.faces = s.faces.slice();
     sess.board.remaining = s.faces.filter((f) => f !== REMOVED).length;
     sess.board.history.length = s.historyLen;
+    sess.buffer = (s.buffer ?? []).map((t) => ({ face: t.face, idx: t.idx }));
     sess.score = s.score;
     sess.combo = s.combo;
     sess.hintsUsed = s.hintsUsed;
