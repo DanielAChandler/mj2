@@ -157,6 +157,13 @@ export class Renderer {
   unit = 10;
   originX = 0;
   originY = 0;
+  /** user zoom (1 = fit) and pan offsets, css px */
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+  /** last canvas css size (for pan clamping) */
+  get canvasWidth(): number { return this.canvas.clientWidth; }
+  get canvasHeight(): number { return this.canvas.clientHeight; }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -175,6 +182,9 @@ export class Renderer {
 
   fit() {
     if (!this.board) return;
+    this.zoom = 1;
+    this.panX = 0;
+    this.panY = 0;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const s of this.board.layout.slots) {
       const x = slotX(s);
@@ -211,15 +221,18 @@ export class Renderer {
    *  Hit rect covers face + depth band. */
   hitTest(px: number, py: number): number | null {
     if (!this.board) return null;
+    // inverse of the view transform (see draw())
+    const cx = (this.canvas.clientWidth || 1) / 2;
+    const cy = (this.canvas.clientHeight || 1) / 2;
+    const x = (px - cx - this.panX) / this.zoom + cx - this.originX;
+    const y = (py - cy - this.panY) / this.zoom + cy - this.originY;
     const u = this.unit;
     const fw = FACE_W * u;
     const fh = (FACE_H + SIDE) * u;
     for (let i = this.placed.length - 1; i >= 0; i--) {
       const p = this.placed[i];
       if (this.board.faces[p.idx] === REMOVED) continue;
-      const x = this.originX + p.x * u;
-      const y = this.originY + p.y * u;
-      if (px >= x && px <= x + fw && py >= y && py <= y + fh) return p.idx;
+      if (x >= p.x * u && x <= p.x * u + fw && y >= p.y * u && y <= p.y * u + fh) return p.idx;
     }
     return null;
   }
@@ -258,6 +271,11 @@ export class Renderer {
     const board = this.board;
     if (!board) return;
     const u = this.unit;
+
+    // user zoom/pan: scale about the canvas center, then translate
+    ctx.translate(cw / 2 + this.panX, ch / 2 + this.panY);
+    ctx.scale(this.zoom, this.zoom);
+    ctx.translate(-cw / 2, -ch / 2);
     const sheet = vitaSheet();
     // full texture cell mapped onto face + walls
     const TEX_W = FACE_TEX_W, TEX_H = FACE_TEX_H;

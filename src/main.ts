@@ -130,13 +130,80 @@ function openPlay() {
 function bindBoardEvents(canvas: HTMLCanvasElement) {
   if (canvas.dataset.bound === "1") return;
   canvas.dataset.bound = "1";
+
+  // --- taps (lift/match) ---
   canvas.addEventListener("pointerdown", (e) => {
-    if (!session || !renderer) return;
+    if (!session || !renderer || gesture.active) return;
     const rect = canvas.getBoundingClientRect();
     const idx = renderer.hitTest(e.clientX - rect.left, e.clientY - rect.top);
     if (idx === null) return;
     session.tap(idx);
   });
+
+  // --- pinch zoom + two-finger pan (pointer events) ---
+  const pointers = new Map<number, { x: number; y: number }>();
+  const gesture = {
+    active: false,
+    startDist: 0,
+    startZoom: 1,
+    startPan: { x: 0, y: 0 },
+    mid: { x: 0, y: 0 },
+  };
+
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [p1, p2] = [...pointers.values()];
+      gesture.active = true;
+      gesture.startDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      gesture.startZoom = renderer!.zoom;
+      gesture.startPan = { x: renderer!.panX, y: renderer!.panY };
+      const rect = canvas.getBoundingClientRect();
+      gesture.mid = { x: (p1.x + p2.x) / 2 - rect.left, y: (p1.y + p2.y) / 2 - rect.top };
+    }
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesture.active || pointers.size < 2 || !renderer) return;
+    const [p1, p2] = [...pointers.values()];
+    const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    if (dist < 10) return;
+    const scale = dist / gesture.startDist;
+    const zoom = Math.max(1, Math.min(4, gesture.startZoom * scale));
+    const rect = canvas.getBoundingClientRect();
+    const mid = { x: (p1.x + p2.x) / 2 - rect.left, y: (p1.y + p2.y) / 2 - rect.top };
+    // keep the pinch midpoint anchored: pan so the board point under the
+    // initial midpoint stays under the current midpoint
+    const cx = canvas.clientWidth / 2;
+    const cy = canvas.clientHeight / 2;
+    const panX = gesture.startPan.x + (mid.x - gesture.mid.x) + (zoom - gesture.startZoom) * (gesture.mid.x - cx) / gesture.startZoom;
+    const panY = gesture.startPan.y + (mid.y - gesture.mid.y) + (zoom - gesture.startZoom) * (gesture.mid.y - cy) / gesture.startZoom;
+    renderer.zoom = zoom;
+    renderer.panX = panX;
+    renderer.panY = panY;
+    clampPan(renderer);
+  });
+
+  const endPointer = (e: PointerEvent) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) gesture.active = false;
+  };
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
+}
+
+/** Keep the panned board covering the viewport (no drifting off-screen). */
+function clampPan(r: Renderer) {
+  const cw = r.canvasWidth;
+  const ch = r.canvasHeight;
+  if (!cw || !ch) return;
+  const maxX = (r.zoom - 1) * cw / 2;
+  const maxY = (r.zoom - 1) * ch / 2;
+  r.panX = Math.max(-maxX, Math.min(maxX, r.panX));
+  r.panY = Math.max(-maxY, Math.min(maxY, r.panY));
 }
 
 function onSessionEvent(e: SessionEvent) {
@@ -334,6 +401,84 @@ function bindUi() {
     $("#btn-mute").textContent = settings.muted ? "🔇" : "🔊";
   });
   $("#btn-mute").textContent = settings.muted ? "🔇" : "🔊";
+
+  // --- progress file export/import ---
+  $("#btn-export").addEventListener("click", () => {
+    const data = {
+      app: "mj2",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      progress,
+      settings,
+      session: session ? session.serialize() : null,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `mahjong-terrace-progress-${new Date().toISOString().slice(0, 10)}.mj2.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $("#btn-import").addEventListener("click", () => {
+    $("#import-file").click();
+  });
+  $("#import-file").addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as {
+        app?: string; progress?: typeof progress; settings?: typeof settings;
+        session?: ReturnType<GameSession["serialize"]> | null;
+      };
+      if (data.app !== "mj2" || !data.progress) throw new Error("not an mj2 save file");
+      // merge: keep local best stars/scores per level, take the further unlock
+      const merged: typeof progress = {
+        unlocked: Math.max(progress.unlocked, data.progress.unlocked ?? 1),
+        levels: { ...progress.levels },
+        powerups: data.progress.powerups ?? progress.powerups,
+        totalScore: progress.totalScore + (data.progress.totalScore ?? 0),
+      };
+      for (const [k, v] of Object.entries(data.progress.levels ?? {})) {
+        const prev = merged.levels[k];
+        merged.levels[k] = prev
+          ? { stars: Math.max(prev.stars, v.stars), score: Math.max(prev.score, v.score) }
+          : v;
+      }
+      progress = merged;
+      saveProgress(progress);
+      if (data.settings) {
+        settings = data.settings;
+        saveSettings(settings);
+        setMuted(settings.muted);
+        $("#btn-mute").textContent = settings.muted ? "🔇" : "🔊";
+      }
+      if (data.session) {
+        saveSession({
+          level: data.session.level,
+          layoutId: data.session.layoutId,
+          faces: data.session.faces,
+          historyLen: data.session.historyLen,
+          buffer: data.session.buffer ?? [],
+          score: data.session.score,
+          combo: data.session.combo,
+          hintsUsed: data.session.hintsUsed,
+          shufflesUsed: data.session.shufflesUsed,
+          undosUsed: data.session.undosUsed,
+          powerups: data.session.powerups,
+        });
+      } else {
+        clearSession();
+      }
+      renderHome();
+      alert(`Progress loaded — Level ${progress.unlocked} unlocked.`);
+    } catch (err) {
+      alert("Could not load that file: " + (err instanceof Error ? err.message : String(err)));
+    }
+  });
 
   $("#levels-prev").addEventListener("click", () => {
     if (chapterCursor > 0) { chapterCursor--; renderLevels(); }

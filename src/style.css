@@ -224,6 +224,15 @@ body {
   background: rgba(0,0,0,.18);
   box-sizing: border-box;
 }
+.home-io {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.home-io .secondary-btn {
+  font-size: 13px;
+  padding: 8px 14px;
+}
 #board-wrap {
   flex: 1;
   min-height: 0;
