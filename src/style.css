@@ -253,6 +253,20 @@ body {
   font-weight: 700;
   color: var(--gold);
   margin-bottom: 10px;
+  cursor: pointer;
+}
+.gallery-theme-title.active {
+  text-decoration: underline;
+  text-decoration-color: var(--gold);
+  text-underline-offset: 4px;
+}
+.gallery-theme-title.active::after {
+  content: " ✓";
+}
+.gallery-credit {
+  font-size: 11px;
+  color: rgba(255,255,255,.45);
+  margin-top: 4px;
 }
 .gallery-family {
   margin-bottom: 14px;

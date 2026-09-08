@@ -22,6 +22,7 @@ export interface Progress {
 
 export interface Settings {
   muted: boolean;
+  theme: string;
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -59,8 +60,8 @@ export function saveProgress(p: Progress) {
 }
 
 export function loadSettings(): Settings {
-  // sound off by default (personal preference); persisted override wins
-  return read<Settings>(KEY_SETTINGS, { muted: true });
+  // sound off + Classic theme by default; persisted override wins
+  return read<Settings>(KEY_SETTINGS, { muted: true, theme: "vita" });
 }
 
 export function saveSettings(s: Settings) {

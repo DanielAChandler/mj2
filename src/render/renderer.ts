@@ -8,10 +8,11 @@
 // Texture anatomy (atlas pixels): face spans x 6..246, y 6..313 (240x307);
 // right wall 246..268; bottom wall 313..330; dark-green outline ~3px.
 
-import { Board, REMOVED } from "../engine/board";
+import type { Board } from "../engine/board";
+import { REMOVED } from "../engine/board";
 import { TILE_H, TILE_W } from "../engine/layout";
 import { faceCanvas } from "./tileart";
-import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, vitaSheet } from "./vitaassets";
+import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, themeSheet } from "./vitaassets";
 
 export interface RenderOpts {
   selected: number | null; // slot index
@@ -161,6 +162,8 @@ export class Renderer {
   zoom = 1;
   panX = 0;
   panY = 0;
+  /** active sprite theme ("" = hand-drawn) */
+  theme = "vita";
   /** last canvas css size (for pan clamping) */
   get canvasWidth(): number { return this.canvas.clientWidth; }
   get canvasHeight(): number { return this.canvas.clientHeight; }
@@ -276,7 +279,7 @@ export class Renderer {
     ctx.translate(cw / 2 + this.panX, ch / 2 + this.panY);
     ctx.scale(this.zoom, this.zoom);
     ctx.translate(-cw / 2, -ch / 2);
-    const sheet = vitaSheet();
+    const sheet = themeSheet(this.theme);
     // full texture cell mapped onto face + walls
     const TEX_W = FACE_TEX_W, TEX_H = FACE_TEX_H;
     const fw = FACE_W * u;

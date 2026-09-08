@@ -3,7 +3,7 @@
 
 import { GameSession, type SessionEvent } from "./game/session";
 import { sfx, setMuted } from "./game/sound";
-import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, vitaSheet } from "./render/vitaassets";
+import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, loadThemeSheet, themeSheet, THEMES } from "./render/vitaassets";
 import { faceCanvas } from "./render/tileart";
 import { faceId } from "./engine/tiles";
 import {
@@ -122,6 +122,7 @@ function openPlay() {
   showScreen("play");
   const canvas = $<HTMLCanvasElement>("#board");
   renderer = new Renderer(canvas);
+  renderer.theme = settings.theme === "hand" ? "vita" : settings.theme;
   renderer.setBoard(session!.board);
   renderer.setOpts({ selected: null, hintPair: null });
   bindBoardEvents(canvas);
@@ -266,14 +267,14 @@ function updateHud() {
   updateTray();
 }
 
-/** Mini-tile canvas for the tray (sprite sheet cell drawn small). */
+/** Mini-tile canvas for the tray (active theme sprite cell drawn small). */
 function trayTile(face: number): HTMLCanvasElement {
   const c = document.createElement("canvas");
   const scale = 2; // drawn at 2x for crispness, displayed at 50px height
   c.width = Math.round(FACE_TEX_W * scale);
   c.height = Math.round(FACE_TEX_H * scale);
   const ctx = c.getContext("2d")!;
-  const sheet = vitaSheet();
+  const sheet = settings.theme === "hand" ? null : themeSheet(settings.theme);
   if (sheet) {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(sheet, (face % SHEET_COLS) * FACE_TEX_W, Math.floor(face / SHEET_COLS) * FACE_TEX_H, FACE_TEX_W, FACE_TEX_H, 0, 0, c.width, c.height);
@@ -284,12 +285,11 @@ function trayTile(face: number): HTMLCanvasElement {
   return c;
 }
 
-/** A gallery tile: sheet sprite if available, else the hand-drawn fallback
- *  baked onto a body. */
-function galleryTile(face: number, useSheet: boolean): HTMLCanvasElement {
+/** A gallery tile for a theme. */
+function galleryTile(face: number, themeId: string): HTMLCanvasElement {
   const c = document.createElement("canvas");
-  const sheet = vitaSheet();
-  if (useSheet && sheet) {
+  const sheet = themeId === "hand" ? null : themeSheet(themeId);
+  if (sheet) {
     const scale = 2;
     c.width = Math.round(FACE_TEX_W * scale);
     c.height = Math.round(FACE_TEX_H * scale);
@@ -331,21 +331,26 @@ const GALLERY_FAMILIES: Array<{ label: string; faces: number[] }> = [
   { label: "Seasons", faces: [38, 39, 40, 41] },
 ];
 
-/** Tile gallery: every face in each art theme. */
+/** Tile gallery: every face in each art theme; tap a theme to select it. */
 function renderTileGallery() {
   const wrap = document.getElementById("tiles-themes");
   if (!wrap) return;
   wrap.textContent = "";
-  const themes: Array<{ name: string; useSheet: boolean }> = [
-    { name: "Classic (Vita)", useSheet: true },
-    { name: "Hand-drawn", useSheet: false },
-  ];
-  for (const th of themes) {
+  for (const th of THEMES) {
     const sec = document.createElement("div");
     sec.className = "gallery-theme";
     const h = document.createElement("div");
     h.className = "gallery-theme-title";
     h.textContent = th.name;
+    if (th.id === settings.theme) h.classList.add("active");
+    h.addEventListener("click", () => {
+      settings.theme = th.id;
+      saveSettings(settings);
+      if (renderer) renderer.theme = th.id;
+      renderTileGallery();
+      updateTray();
+    });
+    h.title = "Use this tile set";
     sec.appendChild(h);
     for (const fam of GALLERY_FAMILIES) {
       const fr = document.createElement("div");
@@ -360,11 +365,17 @@ function renderTileGallery() {
         const cell = document.createElement("div");
         cell.className = "gallery-cell";
         cell.title = faceId(f);
-        cell.appendChild(galleryTile(f, th.useSheet));
+        cell.appendChild(galleryTile(f, th.id));
         grid.appendChild(cell);
       }
       fr.appendChild(grid);
       sec.appendChild(fr);
+    }
+    if (th.credit) {
+      const cr = document.createElement("div");
+      cr.className = "gallery-credit";
+      cr.textContent = th.credit;
+      sec.appendChild(cr);
     }
     wrap.appendChild(sec);
   }
@@ -651,8 +662,14 @@ function boot() {
   bindUi();
   renderHome();
   showScreen("home");
-  // load the encrypted face sheet in the background; renderer picks it up
-  void import("./render/vitaassets").then((m) => m.loadVitaSheet());
+  // load the active theme's sheet first, then the rest for the gallery
+  if (settings.theme !== "hand") {
+    void loadThemeSheet(settings.theme).then(() => {
+      if (renderer) renderer.theme = settings.theme;
+      updateTray();
+    });
+  }
+  for (const t of THEMES) if (t.id !== settings.theme && t.id !== "hand") void loadThemeSheet(t.id);
   // expose live session for e2e tests (no secrets — game state only)
   Object.defineProperty(window, "__session", {
     get: () => session,

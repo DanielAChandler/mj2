@@ -1,28 +1,56 @@
-// Encrypted Vita face sheet loader (personal-use bundle).
+// Encrypted face-sheet loader for all sprite themes (personal-use bundle).
 //
-// public/assets/vita-faces.bin = 12-byte nonce + AES-256-GCM blob of a
-// 7x6 PNG sheet (180x222 per face, 42 faces, engine face order).
-// Decrypted once at boot via WebCrypto; on any failure we fall back to the
-// hand-drawn canvas art so the game always plays.
+// Each theme ships as public/assets/<theme>-faces.bin = 12-byte nonce +
+// AES-256-GCM blob of a 7x6 PNG sheet (180x222 per face, 42 faces, engine
+// face order). Decrypted once at boot via WebCrypto; on any failure we fall
+// back to the hand-drawn canvas art so the game always plays.
 
 export const SHEET_COLS = 7;
 export const SHEET_ROWS = 6;
-/** Exact cell size in the packed sheet (271x333 downscaled 2/3). */
+/** Exact cell size in every packed sheet. */
 export const FACE_TEX_W = 180;
 export const FACE_TEX_H = 222;
 
 const PASSPHRASE = "mj2-personal-2026-vita-faces";
 
-let sheetCanvas: HTMLCanvasElement | null = null;
-let loadPromise: Promise<HTMLCanvasElement | null> | null = null;
+/** Sprite themes: file stem per theme id. */
+export const THEME_FILES: Record<string, string> = {
+  vita: "vita-faces",
+  cc: "cc-faces",
+  jade: "jade-faces",
+  gold: "gold-faces",
+};
 
-/** Decrypt + decode the sheet; resolves null on any failure (fallback art). */
-export function loadVitaSheet(): Promise<HTMLCanvasElement | null> {
-  if (sheetCanvas) return Promise.resolve(sheetCanvas);
-  if (loadPromise) return loadPromise;
-  loadPromise = (async () => {
+export interface ThemeDef {
+  id: string;
+  name: string;
+  /** sheet source: a bundled sprite theme or "hand" for canvas art */
+  source: "vita" | "cc" | "jade" | "gold" | "hand";
+  credit?: string;
+}
+
+export const THEMES: ThemeDef[] = [
+  { id: "vita", name: "Classic (Vita)", source: "vita" },
+  { id: "cc", name: "Painted (Code Inferno, CC-BY)", source: "cc", credit: "Mahjong tileset by Code Inferno (CC-BY 3.0)" },
+  { id: "jade", name: "Jade", source: "jade" },
+  { id: "gold", name: "Golden", source: "gold" },
+  { id: "hand", name: "Hand-drawn", source: "hand" },
+];
+
+const sheets = new Map<string, HTMLCanvasElement>();
+const loadPromises = new Map<string, Promise<HTMLCanvasElement | null>>();
+
+/** Decrypt + decode a theme sheet; resolves null on any failure. */
+export function loadThemeSheet(theme: string): Promise<HTMLCanvasElement | null> {
+  const cached = sheets.get(theme);
+  if (cached) return Promise.resolve(cached);
+  const existing = loadPromises.get(theme);
+  if (existing) return existing;
+  const stem = THEME_FILES[theme];
+  if (!stem) return Promise.resolve(null);
+  const p = (async () => {
     try {
-      const res = await fetch("assets/vita-faces.bin");
+      const res = await fetch(`assets/${stem}.bin`);
       if (!res.ok) return null;
       const blob = new Uint8Array(await res.arrayBuffer());
       if (blob.length < 13) return null;
@@ -39,16 +67,25 @@ export function loadVitaSheet(): Promise<HTMLCanvasElement | null> {
       c.width = bmp.width;
       c.height = bmp.height;
       c.getContext("2d")!.drawImage(bmp, 0, 0);
-      sheetCanvas = c;
+      sheets.set(theme, c);
       return c;
     } catch {
       return null;
     }
   })();
-  return loadPromise;
+  loadPromises.set(theme, p);
+  return p;
 }
 
-/** The loaded sheet, or null until/unless loaded. */
+/** Loaded sheet for a theme, or null. */
+export function themeSheet(theme: string): HTMLCanvasElement | null {
+  return sheets.get(theme) ?? null;
+}
+
+/** Legacy exports (board renderer + tray use the active theme's sheet). */
+export function loadVitaSheet(): Promise<HTMLCanvasElement | null> {
+  return loadThemeSheet("vita");
+}
 export function vitaSheet(): HTMLCanvasElement | null {
-  return sheetCanvas;
+  return sheets.get("vita") ?? null;
 }
