@@ -17,23 +17,21 @@ const PASSPHRASE = "mj2-personal-2026-vita-faces";
 export const THEME_FILES: Record<string, string> = {
   vita: "vita-faces",
   cc: "cc-faces",
-  jade: "jade-faces",
-  gold: "gold-faces",
+  pixel: "pixel-faces",
 };
 
 export interface ThemeDef {
   id: string;
   name: string;
   /** sheet source: a bundled sprite theme or "hand" for canvas art */
-  source: "vita" | "cc" | "jade" | "gold" | "hand";
+  source: "vita" | "cc" | "pixel" | "hand";
   credit?: string;
 }
 
 export const THEMES: ThemeDef[] = [
   { id: "vita", name: "Classic (Vita)", source: "vita" },
   { id: "cc", name: "Painted (Code Inferno, CC-BY)", source: "cc", credit: "Mahjong tileset by Code Inferno (CC-BY 3.0)" },
-  { id: "jade", name: "Jade", source: "jade" },
-  { id: "gold", name: "Golden", source: "gold" },
+  { id: "pixel", name: "Pixel Art (Blueeyedrat)", source: "pixel", credit: "Pixel Assets - Mahjong Tiles by Blueeyedrat" },
   { id: "hand", name: "Hand-drawn", source: "hand" },
 ];
 
