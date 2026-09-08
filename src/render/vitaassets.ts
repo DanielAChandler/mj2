@@ -18,19 +18,23 @@ export const THEME_FILES: Record<string, string> = {
   vita: "vita-faces",
   cc: "cc-faces",
   pixel: "pixel-faces",
+  hk: "hk-faces",
+  riichi: "riichi-faces",
 };
 
 export interface ThemeDef {
   id: string;
   name: string;
   /** sheet source: a bundled sprite theme or "hand" for canvas art */
-  source: "vita" | "cc" | "pixel" | "hand";
+  source: "vita" | "cc" | "hk" | "riichi" | "pixel" | "hand";
   credit?: string;
 }
 
 export const THEMES: ThemeDef[] = [
   { id: "vita", name: "Classic (Vita)", source: "vita" },
   { id: "cc", name: "Painted (Code Inferno, CC-BY)", source: "cc", credit: "Mahjong tileset by Code Inferno (CC-BY 3.0)" },
+  { id: "hk", name: "Hong Kong (Samoheen, PD)", source: "hk", credit: "Mahjong illustrations by Sam O'Heen (public domain)" },
+  { id: "riichi", name: "Modern Riichi (FluffyStuff)", source: "riichi", credit: "riichi-mahjong-tiles by FluffyStuff (public domain); flowers/seasons by xhokir (CC-BY 4.0)" },
   { id: "pixel", name: "Pixel Art (Blueeyedrat)", source: "pixel", credit: "Pixel Assets - Mahjong Tiles by Blueeyedrat" },
   { id: "hand", name: "Hand-drawn", source: "hand" },
 ];
