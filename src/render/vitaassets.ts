@@ -20,13 +20,14 @@ export const THEME_FILES: Record<string, string> = {
   pixel: "pixel-faces",
   hk: "hk-faces",
   riichi: "riichi-faces",
+  bihai: "bihai-faces",
 };
 
 export interface ThemeDef {
   id: string;
   name: string;
   /** sheet source: a bundled sprite theme or "hand" for canvas art */
-  source: "vita" | "cc" | "hk" | "riichi" | "pixel" | "hand";
+  source: "vita" | "cc" | "hk" | "riichi" | "bihai" | "pixel" | "hand";
   credit?: string;
 }
 
@@ -35,6 +36,7 @@ export const THEMES: ThemeDef[] = [
   { id: "cc", name: "Painted (Code Inferno, CC-BY)", source: "cc", credit: "Mahjong tileset by Code Inferno (CC-BY 3.0)" },
   { id: "hk", name: "Hong Kong (Samoheen, PD)", source: "hk", credit: "Mahjong illustrations by Sam O'Heen (public domain)" },
   { id: "riichi", name: "Modern Riichi (FluffyStuff)", source: "riichi", credit: "riichi-mahjong-tiles by FluffyStuff (public domain); flowers/seasons by xhokir (CC-BY 4.0)" },
+  { id: "bihai", name: "Traditional (Bihai Feng)", source: "bihai", credit: "Mahjong tiles by 碧海風 (Bihai Feng), CC BY-SA 4.0" },
   { id: "pixel", name: "Pixel Art (Blueeyedrat)", source: "pixel", credit: "Pixel Assets - Mahjong Tiles by Blueeyedrat" },
   { id: "hand", name: "Hand-drawn", source: "hand" },
 ];
