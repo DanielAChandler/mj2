@@ -30,10 +30,10 @@ const WALL_R = 0.09;
 const COL_PITCH = FACE_W + WALL_R + 0.02;
 /** Vertical pitch: face + bottom wall. */
 const ROW_PITCH = FACE_H + SIDE + 0.035;
-/** Lift per layer (up-left), face-width units — stacks read as near-vertical
- *  towers; keep lift minimal. */
-const LIFT_X = -0.04;
-const LIFT_Y = -0.22;
+/** Lift per layer (up-left) in face units — deep enough that stacked layers
+ *  clearly read as towers (Vita-style straddle reveal). */
+const LIFT_X = -0.11;
+const LIFT_Y = -0.36;
 /** Padding around the board, css px. */
 const PAD = 12;
 
@@ -176,7 +176,6 @@ export class Renderer {
   setBoard(board: Board) {
     this.board = board;
     this.pops = [];
-    this.fit();
   }
 
   setOpts(opts: Partial<RenderOpts>) {
@@ -246,6 +245,27 @@ export class Renderer {
     if (p) this.pops.push({ x: p.x, y: p.y, face, t0: performance.now() });
   }
 
+  /** Contact shadow baked per (sprite theme | hand): soft dark blob the size
+   *  of a face, drawn under every tile to separate layers visually. */
+  private shadowCache = new Map<string, HTMLCanvasElement>();
+  private contactShadow(): HTMLCanvasElement {
+    const hit = this.shadowCache.get(this.theme);
+    if (hit) return hit;
+    const fw = Math.round(FACE_W * this.unit);
+    const fh = Math.round(FACE_H * this.unit);
+    const c = document.createElement("canvas");
+    c.width = Math.max(2, fw);
+    c.height = Math.max(2, fh);
+    const g = c.getContext("2d")!;
+    const grad = g.createRadialGradient(fw / 2, fh / 2, Math.min(fw, fh) * 0.2, fw / 2, fh / 2, Math.max(fw, fh) * 0.62);
+    grad.addColorStop(0, "rgba(6, 26, 16, 0.5)");
+    grad.addColorStop(1, "rgba(6, 26, 16, 0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, fw, fh);
+    this.shadowCache.set(this.theme, c);
+    return c;
+  }
+
   private tileRect(p: { x: number; y: number }): { x: number; y: number; fw: number; fh: number } {
     const u = this.unit;
     return {
@@ -293,6 +313,13 @@ export class Renderer {
       const r = this.tileRect(p);
       const side = Math.max(2, Math.round(SIDE * r.fh));
 
+      // contact shadow under every tile: darkens whatever is beneath it, so
+      // stacked layers separate even when faces are identical
+      if (p.z > 1 || board.coveredAbove(p.idx)) {
+        const sh = this.contactShadow();
+        ctx.drawImage(sh, r.x - r.fw * 0.18, r.y - r.fh * 0.1, r.fw * 1.36, r.fh * 1.18);
+      }
+
       if (sheet) {
         const col = face % SHEET_COLS;
         const row = Math.floor(face / SHEET_COLS);
@@ -309,9 +336,9 @@ export class Renderer {
       const selected = this.opts.selected === p.idx;
       const hinted = this.opts.hintPair !== null && (this.opts.hintPair[0] === p.idx || this.opts.hintPair[1] === p.idx);
 
-      // covered tiles dim toward the felt tone
+      // covered tiles dim strongly toward the felt tone
       if (covered && !selected && !hinted) {
-        ctx.fillStyle = "rgba(20, 46, 32, 0.42)";
+        ctx.fillStyle = "rgba(20, 46, 32, 0.58)";
         ctx.fillRect(r.x, r.y, r.fw, r.fh + side);
       }
 

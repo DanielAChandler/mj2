@@ -125,6 +125,7 @@ function openPlay() {
   renderer.theme = settings.theme === "hand" ? "vita" : settings.theme;
   renderer.setBoard(session!.board);
   renderer.setOpts({ selected: null, hintPair: null });
+  renderer.fit();
   bindBoardEvents(canvas);
   updateHud();
   persistSession();
@@ -457,14 +458,29 @@ function onLevelCleared() {
   progress.levels[key] = rec;
   progress.unlocked = Math.max(progress.unlocked, Math.min(currentLevel + 1, TOTAL_LEVELS));
   progress.totalScore += score;
-  saveProgress(progress);
   clearSession();
   // power-up reward: +1 hint every win, +1 shuffle every 3rd win
   progress.powerups.hints += 1;
   if (currentLevel % 3 === 0) progress.powerups.shuffles += 1;
   progress.powerups.undos = Math.min(progress.powerups.undos + 1, 9);
   saveProgress(progress);
-  showWinOverlay(stars, score);
+  if (currentLevel >= TOTAL_LEVELS) {
+    // campaign complete: the only place the clear screen still appears
+    showWinOverlay(stars, score);
+    return;
+  }
+  showToast(`Level ${currentLevel} cleared`);
+  startLevel(currentLevel + 1);
+}
+
+let toastTimer = 0;
+/** Brief non-blocking notice (level transitions); fades out on its own. */
+function showToast(msg: string) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => t.classList.remove("show"), 1500);
 }
 
 function showWinOverlay(stars: number, score: number) {
@@ -665,7 +681,10 @@ function boot() {
   // load the active theme's sheet first, then the rest for the gallery
   if (settings.theme !== "hand") {
     void loadThemeSheet(settings.theme).then(() => {
-      if (renderer) renderer.theme = settings.theme;
+      if (renderer) {
+        renderer.theme = settings.theme;
+        renderer.fit(); // resize now that the sprite sheet is ready
+      }
       updateTray();
     });
   }

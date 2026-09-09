@@ -373,3 +373,27 @@ body {
   color: var(--ink);
   border: 1px solid var(--panel-edge);
 }
+
+/* --- level-transition toast --- */
+#toast {
+  position: fixed;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%) scale(.92);
+  background: var(--panel);
+  border: 2px solid var(--panel-edge);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  padding: 14px 26px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease, transform .22s ease;
+  z-index: 60;
+}
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
