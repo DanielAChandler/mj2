@@ -1,6 +1,6 @@
 // Game session: owns the Board, the tile buffer, power-ups, scoring, stars.
 //
-// Buffer mechanic (Vita-style): tapping a FREE tile lifts it off the board
+// Buffer mechanic: tapping a FREE tile lifts it off the board
 // into a 4-slot buffer shown at the top. If the tapped tile's match group
 // is already in the buffer, the pair clears immediately (score + combo) —
 // matched tiles never sit in the buffer, only unmatched singles do.

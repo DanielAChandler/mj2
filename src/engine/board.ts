@@ -1,6 +1,6 @@
 // Board: placement + freedom queries + undoable removals.
 //
-// Freedom rule (classic mahjong solitaire, as Vita plays it):
+// Freedom rule (classic mahjong solitaire):
 // - a tile is FREE when no present tile on a higher layer overlaps its
 //   footprint (covered = unselectable, even by its own cover), AND
 // - at least one long side (left or right edge) is not touched by a

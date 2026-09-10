@@ -1,6 +1,6 @@
 # Mahjong Terrace
 
-A relaxing Vita-style mahjong solitaire web app. Fullscreen, ad-free, no
+A relaxing mahjong solitaire web app. Fullscreen, ad-free, no
 extra games — just clean tile matching with 3000 deterministic levels.
 
 ## Play
@@ -11,7 +11,7 @@ Actions in repo settings, then push to `main`).
 ## Features
 
 - Classic mahjong solitaire rules (free tile = uncovered + one open side)
-- 3000 levels across 30 chapters; difficulty ramps 1–5 with Vita-style
+- 3000 levels across 30 chapters; difficulty ramps 1–5 with
   easy-board breaks
 - 15 hand-authored layouts (28–134 tiles, up to 4 layers) with the classic
   stacked look

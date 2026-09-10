@@ -11,11 +11,11 @@ export const SHEET_ROWS = 6;
 export const FACE_TEX_W = 180;
 export const FACE_TEX_H = 222;
 
-const PASSPHRASE = "mj2-personal-2026-vita-faces";
+const PASSPHRASE = "mj2-personal-2026-classic-faces";
 
 /** Sprite themes: file stem per theme id. */
 export const THEME_FILES: Record<string, string> = {
-  vita: "vita-faces",
+  classic: "classic-faces",
   cc: "cc-faces",
   pixel: "pixel-faces",
   hk: "hk-faces",
@@ -27,12 +27,12 @@ export interface ThemeDef {
   id: string;
   name: string;
   /** sheet source: a bundled sprite theme or "hand" for canvas art */
-  source: "vita" | "cc" | "hk" | "riichi" | "bihai" | "pixel" | "hand";
+  source: "classic" | "cc" | "hk" | "riichi" | "bihai" | "pixel" | "hand";
   credit?: string;
 }
 
 export const THEMES: ThemeDef[] = [
-  { id: "vita", name: "Classic (Vita)", source: "vita" },
+  { id: "classic", name: "Classic", source: "classic" },
   { id: "cc", name: "Painted (Code Inferno, CC-BY)", source: "cc", credit: "Mahjong tileset by Code Inferno (CC-BY 3.0)" },
   { id: "hk", name: "Hong Kong (Samoheen, PD)", source: "hk", credit: "Mahjong illustrations by Sam O'Heen (public domain)" },
   { id: "riichi", name: "Modern Riichi (FluffyStuff)", source: "riichi", credit: "riichi-mahjong-tiles by FluffyStuff (public domain); flowers/seasons by xhokir (CC-BY 4.0)" },
@@ -87,9 +87,5 @@ export function themeSheet(theme: string): HTMLCanvasElement | null {
 }
 
 /** Legacy exports (board renderer + tray use the active theme's sheet). */
-export function loadVitaSheet(): Promise<HTMLCanvasElement | null> {
-  return loadThemeSheet("vita");
-}
-export function vitaSheet(): HTMLCanvasElement | null {
-  return sheets.get("vita") ?? null;
-}
+
+

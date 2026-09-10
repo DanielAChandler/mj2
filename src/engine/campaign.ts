@@ -4,12 +4,12 @@
 // rotates through the catalog; the puzzle key (which drives face selection)
 // is the level number, so every level is a distinct, reproducible board.
 // Difficulty ramps gently across the whole campaign and repeats within a
-// band, Vita-style.
+// band, ebbing difficulty.
 
 export const CHAPTER_SIZE = 100;
 
 /** Difficulty for a 1-based level number: ramps 1..5 with some sawtooth so
- *  easy levels appear throughout (Vita mixes easy boards into every range). */
+ *  easy levels appear throughout (easy boards recur throughout). */
 export function difficultyFor(level: number): number {
   const t = (level - 1) / 1200; // full ramp over 1200 levels
   const ramp = 1 + t * 4; // 1 → 5

@@ -3,7 +3,7 @@
 
 import { GameSession, type SessionEvent } from "./game/session";
 import { sfx, setMuted } from "./game/sound";
-import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, loadThemeSheet, themeSheet, THEMES } from "./render/vitaassets";
+import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, loadThemeSheet, themeSheet, THEMES } from "./render/themesheets";
 import { faceCanvas } from "./render/tileart";
 import { faceId } from "./engine/tiles";
 import {
@@ -171,7 +171,7 @@ function openPlay() {
   showScreen("play");
   const canvas = $<HTMLCanvasElement>("#board");
   renderer = new Renderer(canvas);
-  renderer.theme = settings.theme === "hand" ? "vita" : settings.theme;
+  renderer.theme = settings.theme === "hand" ? "classic" : settings.theme;
   renderer.setBoard(session!.board);
   renderer.setOpts({ selected: null, hintPair: null });
   renderer.fit();

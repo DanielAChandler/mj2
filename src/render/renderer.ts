@@ -1,6 +1,6 @@
 // Canvas board renderer.
 //
-// Primary path: the bundled (encrypted) Vita cardface sheet — each 271x333
+// Primary path: the bundled (encrypted) classic cardface sheet — each 271x333
 // frame is a COMPLETE tile (rounded body, green outline, teal->green walls,
 // ivory face, painted art), drawn via texture-rect blit. Fallback: the
 // hand-drawn canvas sprites baked below, used if the sheet fails to load.
@@ -12,7 +12,7 @@ import type { Board } from "../engine/board";
 import { REMOVED } from "../engine/board";
 import { TILE_H, TILE_W, type Layout } from "../engine/layout";
 import { faceCanvas } from "./tileart";
-import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, themeSheet } from "./vitaassets";
+import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, themeSheet } from "./themesheets";
 
 export interface RenderOpts {
   selected: number | null; // slot index
@@ -31,7 +31,7 @@ export const COL_PITCH = FACE_W + WALL_R + 0.02;
 /** Vertical pitch: face + bottom wall. */
 export const ROW_PITCH = FACE_H + SIDE + 0.035;
 /** Lift per layer (up-left) in face units — deep enough that stacked layers
- *  clearly read as towers (Vita-style straddle reveal). */
+ *  clearly read as towers (classic straddle reveal). */
 export const LIFT_X = -0.11;
 export const LIFT_Y = -0.36;
 /** Padding around the board, css px. */
@@ -163,7 +163,7 @@ export class Renderer {
   panX = 0;
   panY = 0;
   /** active sprite theme ("" = hand-drawn) */
-  theme = "vita";
+  theme = "classic";
   /** last canvas css size (for pan clamping) */
   get canvasWidth(): number { return this.canvas.clientWidth; }
   get canvasHeight(): number { return this.canvas.clientHeight; }

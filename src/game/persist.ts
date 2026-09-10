@@ -61,7 +61,7 @@ export function saveProgress(p: Progress) {
 
 export function loadSettings(): Settings {
   // sound off + Classic theme by default; persisted override wins
-  return read<Settings>(KEY_SETTINGS, { muted: true, theme: "vita" });
+  return read<Settings>(KEY_SETTINGS, { muted: true, theme: "classic" });
 }
 
 export function saveSettings(s: Settings) {
