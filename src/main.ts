@@ -12,13 +12,14 @@ import {
 } from "./game/persist";
 import {
   layoutById, levelLayout, levelDifficulty,
+  layouts, layoutForLevel,
   TOTAL_LEVELS, chapterOf, chapterTitle, CHAPTER_SIZE,
 } from "./game/catalog";
-import { Renderer } from "./render/renderer";
+import { Renderer, layoutThumb } from "./render/renderer";
 import { REMOVED } from "./engine/board";
 import "./style.css";
 
-type Screen = "home" | "levels" | "play" | "tiles";
+type Screen = "home" | "levels" | "play" | "tiles" | "layouts";
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T =>
   document.querySelector(sel) as T;
@@ -36,12 +37,60 @@ let resizeTimer = 0;
 // ---------------------------------------------------------------------------
 // Screen switching
 
+/** Layout gallery: silhouette thumbnails of every layout. Faces are
+ *  intentionally omitted — the shape is public, the solution isn't. */
+function renderLayoutGallery() {
+  const wrap = document.getElementById("layouts-grid");
+  if (!wrap) return;
+  wrap.textContent = "";
+  for (const layout of layouts()) {
+    const seen = layoutUseCount(layout.id);
+    const card = document.createElement("div");
+    card.className = "layout-card";
+    const thumb = layoutThumb(layout);
+    thumb.className = "layout-thumb";
+    card.appendChild(thumb);
+    const cap = document.createElement("div");
+    cap.className = "layout-caption";
+    cap.textContent = layout.name;
+    card.appendChild(cap);
+    const meta = document.createElement("div");
+    meta.className = "layout-meta";
+    const maxZ = Math.max(...layout.slots.map((s) => s.z));
+    meta.textContent = `${layout.tileCount} tiles · ${maxZ} layer${maxZ > 1 ? "s" : ""}`;
+    card.appendChild(meta);
+    if (seen > 0) {
+      const used = document.createElement("div");
+      used.className = "layout-used";
+      used.textContent = seen === 1 ? "level 1" : `${seen} levels`;
+      card.appendChild(used);
+    }
+    wrap.appendChild(card);
+  }
+}
+
+/** How many campaign levels use a layout (no level numbers — that would
+ *  let players farm a known shape; just a sense of variety). */
+function layoutUseCount(id: string): number {
+  return levelsForLayout.get(id) ?? 0;
+}
+
+const levelsForLayout = new Map<string, number>();
+function buildLayoutUseCounts() {
+  levelsForLayout.clear();
+  for (let lv = 1; lv <= TOTAL_LEVELS; lv++) {
+    const id = layoutForLevel(lv, layouts().map((l) => l.id));
+    levelsForLayout.set(id, (levelsForLayout.get(id) ?? 0) + 1);
+  }
+}
+
 function showScreen(name: Screen) {
   screen = name;
   $("#screen-home").classList.toggle("hidden", name !== "home");
   $("#screen-levels").classList.toggle("hidden", name !== "levels");
   $("#screen-play").classList.toggle("hidden", name !== "play");
   $("#screen-tiles").classList.toggle("hidden", name !== "tiles");
+  $("#screen-layouts").classList.toggle("hidden", name !== "layouts");
   $("#topbar").classList.toggle("hidden", name === "home");
 }
 
@@ -512,6 +561,14 @@ function bindUi() {
   $("#btn-tiles").addEventListener("click", () => {
     renderTileGallery();
     showScreen("tiles");
+  });
+  $("#btn-layouts").addEventListener("click", () => {
+    buildLayoutUseCounts();
+    renderLayoutGallery();
+    showScreen("layouts");
+  });
+  $("#layouts-back").addEventListener("click", () => {
+    showScreen("home");
   });
   $("#tiles-back").addEventListener("click", () => {
     showScreen("home");

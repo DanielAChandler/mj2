@@ -10,7 +10,7 @@
 
 import type { Board } from "../engine/board";
 import { REMOVED } from "../engine/board";
-import { TILE_H, TILE_W } from "../engine/layout";
+import { TILE_H, TILE_W, type Layout } from "../engine/layout";
 import { faceCanvas } from "./tileart";
 import { FACE_TEX_H, FACE_TEX_W, SHEET_COLS, themeSheet } from "./vitaassets";
 
@@ -20,20 +20,20 @@ export interface RenderOpts {
 }
 
 /** Tile face size in grid half-units (atlas face ratio 307/240 = 1.28). */
-const FACE_W = 2;
-const FACE_H = 2.56;
+export const FACE_W = 2;
+export const FACE_H = 2.56;
 /** Bottom wall in face-height units (texture bottom wall ~20/307). */
-const SIDE = 0.065;
+export const SIDE = 0.065;
 /** Right wall (grey-teal) in face-width units (~22/240). */
-const WALL_R = 0.09;
+export const WALL_R = 0.09;
 /** Horizontal pitch: face + right wall + seam. */
-const COL_PITCH = FACE_W + WALL_R + 0.02;
+export const COL_PITCH = FACE_W + WALL_R + 0.02;
 /** Vertical pitch: face + bottom wall. */
-const ROW_PITCH = FACE_H + SIDE + 0.035;
+export const ROW_PITCH = FACE_H + SIDE + 0.035;
 /** Lift per layer (up-left) in face units — deep enough that stacked layers
  *  clearly read as towers (Vita-style straddle reveal). */
-const LIFT_X = -0.11;
-const LIFT_Y = -0.36;
+export const LIFT_X = -0.11;
+export const LIFT_Y = -0.36;
 /** Padding around the board, css px. */
 const PAD = 12;
 
@@ -379,4 +379,77 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
   }
+}
+
+const PREVIEW_TILE_W = 36;
+
+/**
+ * Faceless layout thumbnail: draws the SHAPE (stacked silhouette with the
+ * same geometry as the board) but never the puzzle — no faces, no art, no
+ * layer ordering hints beyond depth shading. Rendered offscreen once per
+ * layout and cached.
+ */
+const thumbCache = new Map<string, HTMLCanvasElement>();
+export function layoutThumb(layout: Layout): HTMLCanvasElement {
+  const hit = thumbCache.get(layout.id);
+  if (hit) return hit;
+
+  const u = PREVIEW_TILE_W / FACE_W;
+  const slots = layout.slots;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const s of slots) {
+    const x = (s.x / TILE_W) * COL_PITCH + (s.z - 1) * LIFT_X;
+    const y = (s.y / TILE_H) * ROW_PITCH + (s.z - 1) * LIFT_Y;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x + FACE_W);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y + FACE_H + SIDE);
+  }
+  const wU = maxX - minX;
+  const hU = maxY - minY;
+  const pad = 4;
+  const c = document.createElement("canvas");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  c.width = Math.round((wU * u + pad * 2) * dpr);
+  c.height = Math.round((hU * u + pad * 2) * dpr);
+  const ctx = c.getContext("2d")!;
+  ctx.scale(dpr, dpr);
+  const ox = pad - minX * u;
+  const oy = pad - minY * u;
+
+  const order = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.z - b.s.z || a.s.y - b.s.y || a.s.x - b.s.x);
+  const maxZ = Math.max(...slots.map((s) => s.z));
+  const fw = FACE_W * u;
+  const fh = FACE_H * u;
+  const wallR = WALL_R * u;
+  const side = SIDE * fh;
+  for (const { s } of order) {
+    const x = ox + ((s.x / TILE_W) * COL_PITCH + (s.z - 1) * LIFT_X) * u;
+    const y = oy + ((s.y / TILE_H) * ROW_PITCH + (s.z - 1) * LIFT_Y) * u;
+    const rad = Math.max(2, fw * 0.06);
+    // right + bottom walls, shaded deeper with height
+    const t = (s.z - 1) / Math.max(1, maxZ - 1);
+    const shade = 0.08 + t * 0.16;
+    ctx.fillStyle = `rgb(${196 - 40 * t}, ${188 - 40 * t}, ${168 - 40 * t})`;
+    ctx.beginPath();
+    ctx.roundRect(x + fw, y + rad, wallR, fh - rad * 2 + side, rad / 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(x + rad, y + fh, fw - rad * 2 + wallR, side, rad / 2);
+    ctx.fill();
+    // faceless ivory face, brighter toward the top layer
+    const v = Math.round(238 - 22 * (1 - t));
+    ctx.fillStyle = `rgb(${v}, ${v - 4}, ${v - 12})`;
+    ctx.beginPath();
+    ctx.roundRect(x, y, fw, fh, rad);
+    ctx.fill();
+    // subtle top-layer sheen so stacks read as 3D
+    if (shade > 0) {
+      ctx.fillStyle = `rgba(20, 46, 32, ${shade * 0.35})`;
+      ctx.fillRect(x + fw * 0.12, y + fh * 0.1, fw * 0.76, fh * 0.8);
+    }
+  }
+
+  thumbCache.set(layout.id, c);
+  return c;
 }
