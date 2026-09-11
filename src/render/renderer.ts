@@ -349,10 +349,50 @@ export class Renderer {
       }
 
       if (hinted) {
-        const a = 0.55 + 0.45 * Math.sin(now / 150);
-        ctx.strokeStyle = `rgba(64, 226, 133, ${a.toFixed(3)})`;
-        ctx.lineWidth = Math.max(2, u * 0.09);
-        ctx.strokeRect(r.x - 1, r.y - 1, r.fw + 2, r.fh + side + 2);
+        // marker only; the spotlight pass below redraws these tiles bright
+        ctx.strokeStyle = "#3dff8f";
+        ctx.lineWidth = Math.max(3, u * 0.16);
+        ctx.beginPath();
+        ctx.roundRect(r.x - 1, r.y - 1, r.fw + 2, r.fh + side + 2, Math.max(4, u * 0.18));
+        ctx.stroke();
+      }
+    }
+
+    // hint spotlight: transparent dim over the whole board, hinted tiles
+    // redrawn on top at full brightness with a glowing outline
+    const hp = this.opts.hintPair;
+    if (hp && this.pops.length === 0) {
+      const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = `rgba(6, 22, 14, ${(0.4 + 0.14 * pulse).toFixed(3)})`;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.restore();
+      for (const idx of hp) {
+        const p = this.placed.find((q) => q.idx === idx);
+        if (!p || board.faces[idx] === REMOVED) continue;
+        const face = board.faces[idx];
+        const r = this.tileRect(p);
+        const fullH = r.fh * (1 + SIDE) + 2;
+        if (sheet) {
+          const col = face % SHEET_COLS;
+          const row = Math.floor(face / SHEET_COLS);
+          ctx.drawImage(sheet, col * TEX_W, row * TEX_H, TEX_W, TEX_H, r.x, r.y, drawW, drawH);
+        } else {
+          const sprite = tileSprite(face, u);
+          const sp = sprite.width / Math.min(dpr, 2);
+          const sh = sprite.height / Math.min(dpr, 2);
+          ctx.drawImage(sprite, r.x - 1, r.y - 1, sp, sh);
+        }
+        ctx.save();
+        ctx.shadowColor = "rgba(84, 255, 156, 0.9)";
+        ctx.shadowBlur = Math.max(4, u * 0.45);
+        ctx.strokeStyle = "#3dff8f";
+        ctx.lineWidth = Math.max(3, u * 0.16);
+        ctx.beginPath();
+        ctx.roundRect(r.x - 1, r.y - 1, r.fw + 2, fullH, Math.max(4, u * 0.18));
+        ctx.stroke();
+        ctx.restore();
       }
     }
 
